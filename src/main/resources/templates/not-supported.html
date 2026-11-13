@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Not on NeoBuddy yet')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <th:block th:if="${param.paused}">
+    <h1>Sign-ups are paused</h1>
+    <p>NeoBuddy is paused for your college for now. Please try again later.</p>
+  </th:block>
+  <th:block th:unless="${param.paused}">
+    <p class="notice ok" th:if="${param.requested}" role="status">Thanks! We will look into adding your college.</p>
+    <h1>Your college is not on NeoBuddy yet</h1>
+    <p>Sorry, NeoBuddy only works for colleges whose placement mail it reads, and yours is not one of them yet. Personal accounts such as Gmail cannot be used: sign in with your college Google account.</p>
+    <section class="card" th:unless="${param.requested}">
+      <h2>Request your college</h2>
+      <ul class="notice error" th:if="${errors}" role="alert">
+        <li th:each="error : ${errors}" th:text="${error}"></li>
+      </ul>
+      <form th:action="@{/college-requests}" th:object="${form}" method="post" class="stack">
+        <label for="collegeName">College name</label>
+        <input id="collegeName" th:field="*{collegeName}" required maxlength="120">
+        <label for="emailDomain">College email domain</label>
+        <input id="emailDomain" th:field="*{emailDomain}" required maxlength="100" placeholder="college.edu.in" spellcheck="false">
+        <label for="contactEmail">Your email (optional, to hear when it is ready)</label>
+        <input id="contactEmail" th:field="*{contactEmail}" type="email" maxlength="254">
+        <button class="button primary" type="submit">Send request</button>
+      </form>
+    </section>
+  </th:block>
+  <p><a th:href="@{/}">Back to the start</a></p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

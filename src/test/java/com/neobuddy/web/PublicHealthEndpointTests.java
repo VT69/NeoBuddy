@@ -58,10 +58,13 @@ class PublicHealthEndpointTests {
     assertThat(response.body()).isEqualTo("{\"status\":\"UP\"}");
   }
 
+  /** Strangers are sent to the landing page or refused; nothing of the actuator shows. */
   @ParameterizedTest
-  @ValueSource(
-      strings = {"/actuator/env", "/actuator/beans", "/actuator/prometheus", "/", "/api/v1/me"})
+  @ValueSource(strings = {"/actuator/env", "/actuator/beans", "/actuator/prometheus", "/api/v1/me"})
   void everythingElseIsRefused(String path) throws Exception {
-    assertThat(get(path).statusCode()).isIn(401, 403, 404);
+    HttpResponse<String> response = get(path);
+
+    assertThat(response.statusCode()).isIn(302, 401, 403, 404);
+    assertThat(response.body()).doesNotContain("propertySources").doesNotContain("beans");
   }
 }

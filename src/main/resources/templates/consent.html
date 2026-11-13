@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Before you start')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1>Before you start</h1>
+  <p>You are signed in as <strong th:text="${email}">you@college.edu</strong>. Nothing about you is stored yet.</p>
+  <section class="card">
+    <h2>What NeoBuddy keeps if you continue</h2>
+    <ul>
+      <li>Your name and college email from Google.</li>
+      <li>The identifiers you add: NeoID, and if you choose, registration number and college email.</li>
+      <li>Where to alert you: your ntfy topic and your email address, stored encrypted.</li>
+      <li>For each placement email that mentions you: the company, the date and your own row from the sheet. Your row is deleted after 180 days.</li>
+    </ul>
+    <p>Alerts pass through the services that deliver them: ntfy.sh for push and Amazon SES for email. You can pause alerts or delete your account at any time.</p>
+  </section>
+  <p class="notice error" th:if="${error}" th:text="${error}" role="alert"></p>
+  <form th:action="@{/consent}" method="post" class="stack">
+    <label class="check"><input type="checkbox" name="agree" value="true" required> I have read the <a th:href="@{/privacy}" target="_blank" rel="noopener">privacy policy</a> and <a th:href="@{/terms}" target="_blank" rel="noopener">terms</a> and agree.</label>
+    <button class="button primary" type="submit">Create my account</button>
+  </form>
+  <form th:action="@{/logout}" method="post" class="stack">
+    <button class="button" type="submit">No thanks, sign out</button>
+  </form>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -54,6 +54,25 @@ public class ProcessedEmailStore {
     return inserted == 1;
   }
 
+  /**
+   * Records a synthetic email for a test alert: processed, of type OTHER, from no source inbox.
+   *
+   * @return its Message-ID, under the reserved {@code neobuddy.invalid} domain
+   */
+  public String insertTest(UUID collegeId, String subject, Instant receivedAt) {
+    String rfcMessageId = "<test-" + UUID.randomUUID() + "@neobuddy.invalid>";
+    jdbc.update(
+        "insert into processed_email"
+            + " (rfc_message_id, college_id, source_id, gmail_id, sender, subject, received_at,"
+            + " event_type, status, processed_at, is_test)"
+            + " values (?, ?, null, 'test', 'NeoBuddy', ?, ?, 'OTHER', 'PROCESSED', now(), true)",
+        rfcMessageId,
+        collegeId,
+        subject,
+        OffsetDateTime.ofInstant(receivedAt, ZoneOffset.UTC));
+    return rfcMessageId;
+  }
+
   public boolean exists(String rfcMessageId) {
     Integer count =
         jdbc.queryForObject(

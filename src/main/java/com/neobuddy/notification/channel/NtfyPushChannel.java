@@ -71,7 +71,11 @@ class NtfyPushChannel implements NotificationChannel {
               .header("Title", headerValue(message.title()))
               .header("Tags", message.tags())
               .header("Priority", message.priority())
-              .header("Click", message.click())
+              .headers(headers -> {
+                if (message.click() != null) {
+                  headers.set("Click", message.click());
+                }
+              })
               .body(message.body())
               .exchange((request, response) -> response.getStatusCode());
     } catch (RestClientException e) {

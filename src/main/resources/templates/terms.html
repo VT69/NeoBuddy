@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Terms')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow prose">
+  <h1>Terms</h1>
+  <ul>
+    <li><strong>NeoBuddy is a helper, not the official source.</strong> It is free and run by students on a best-effort basis. An alert can be late, missed or, rarely, wrong. Always read the official placement emails; they decide.</li>
+    <li><strong>Not affiliated.</strong> NeoBuddy is not run by the placement cell, your college or NeoPAT.</li>
+    <li><strong>Your own identifiers only.</strong> Add only your own NeoID, registration number and email. One account per person.</li>
+    <li><strong>Keep your topic private.</strong> Anyone with your ntfy topic can read your alerts.</li>
+    <li><strong>Fair use.</strong> Do not try to see other students' data, overload the service or get around its limits. We may suspend accounts that do.</li>
+    <li><strong>Changes and ending.</strong> We may change or stop NeoBuddy. If we stop, your data is deleted as the <a th:href="@{/privacy}">privacy policy</a> describes.</li>
+    <li th:if="${contactEmail}">Questions: <a th:href="|mailto:${contactEmail}|" th:text="${contactEmail}">contact</a>.</li>
+  </ul>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

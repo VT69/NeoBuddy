@@ -14,4 +14,7 @@ public interface StoredMatches {
   List<StoredMatch> ofEmail(String rfcMessageId);
 
   Optional<StoredMatch> find(UUID matchId);
+
+  /** One page of a user's matches, newest first, test matches included. */
+  List<StoredMatch> ofUser(UUID userId, int offset, int limit);
 }

@@ -67,29 +67,12 @@ public class SubscriberService {
    */
   @Transactional
   public SubscriberView registerFromOidc(OidcClaims claims) {
-    if (!claims.emailVerified() || isBlank(claims.email()) || isBlank(claims.subject())) {
-      throw new RegistrationRejectedException(Reason.EMAIL_NOT_VERIFIED);
+    Optional<SubscriberView> existing = signIn(claims);
+    if (existing.isPresent()) {
+      return existing.get();
     }
     String email = claims.email().strip().toLowerCase(Locale.ROOT);
     College college = collegeFor(email, claims.hostedDomain());
-
-    Optional<AppUser> bySubject = users.findByGoogleSub(claims.subject());
-    if (bySubject.isPresent()) {
-      return view(bySubject.get());
-    }
-    Optional<AppUser> byEmail = users.findByEmail(email);
-    if (byEmail.isPresent()) {
-      AppUser existing = byEmail.get();
-      if (!existing.awaitsFirstSignIn()) {
-        throw new RegistrationRejectedException(Reason.EMAIL_ALREADY_REGISTERED);
-      }
-      // An account created ahead of its owner's first sign-in (the bootstrap admin).
-      existing.linkGoogleAccount(claims.subject());
-      if (existing.getDisplayName() == null) {
-        existing.rename(claims.name());
-      }
-      return view(existing);
-    }
     AppUser created =
         users.save(
             new AppUser(
@@ -100,6 +83,42 @@ public class SubscriberService {
                 UserRole.USER,
                 clock.instant()));
     return view(created);
+  }
+
+  /**
+   * Checks a Google sign-in and finds its account, without creating one. An account made ahead of
+   * its owner's first sign-in (the bootstrap admin) is tied to the Google identity here.
+   *
+   * @return the account; empty if the student may sign up but has no account yet, so must first
+   *     consent and then be registered with {@link #registerFromOidc}
+   * @throws RegistrationRejectedException if the email is unverified, belongs to no onboarded or to
+   *     a paused college, or is already tied to a different Google account
+   */
+  @Transactional
+  public Optional<SubscriberView> signIn(OidcClaims claims) {
+    if (!claims.emailVerified() || isBlank(claims.email()) || isBlank(claims.subject())) {
+      throw new RegistrationRejectedException(Reason.EMAIL_NOT_VERIFIED);
+    }
+    String email = claims.email().strip().toLowerCase(Locale.ROOT);
+    collegeFor(email, claims.hostedDomain());
+
+    Optional<AppUser> bySubject = users.findByGoogleSub(claims.subject());
+    if (bySubject.isPresent()) {
+      return Optional.of(view(bySubject.get()));
+    }
+    Optional<AppUser> byEmail = users.findByEmail(email);
+    if (byEmail.isEmpty()) {
+      return Optional.empty();
+    }
+    AppUser existing = byEmail.get();
+    if (!existing.awaitsFirstSignIn()) {
+      throw new RegistrationRejectedException(Reason.EMAIL_ALREADY_REGISTERED);
+    }
+    existing.linkGoogleAccount(claims.subject());
+    if (existing.getDisplayName() == null) {
+      existing.rename(claims.name());
+    }
+    return Optional.of(view(existing));
   }
 
   @Transactional(readOnly = true)
@@ -189,6 +208,17 @@ public class SubscriberService {
             .findByIdAndUserId(channelId, userId)
             .orElseThrow(() -> new SubscriberNotFoundException("Channel"));
     channel.markVerified(clock.instant());
+    return view(channel);
+  }
+
+  /** Switches one of the user's channels off or back on; the address and verification stay. */
+  @Transactional
+  public ChannelView setChannelEnabled(UUID userId, UUID channelId, boolean enabled) {
+    Channel channel =
+        channels
+            .findByIdAndUserId(channelId, userId)
+            .orElseThrow(() -> new SubscriberNotFoundException("Channel"));
+    channel.setEnabled(enabled);
     return view(channel);
   }
 

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Error')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1 th:switch="${status}">
+    <span th:case="404">Page not found</span>
+    <span th:case="403">Not allowed</span>
+    <span th:case="*">Something went wrong</span>
+  </h1>
+  <p th:switch="${status}">
+    <span th:case="404">There is nothing here.</span>
+    <span th:case="403">You may not open this page. If a form stopped working, reload the page and try again.</span>
+    <span th:case="*">Please try again in a moment.</span>
+  </p>
+  <p><a class="button" th:href="@{/}">Back to the start</a></p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

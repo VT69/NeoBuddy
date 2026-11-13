@@ -52,6 +52,9 @@ tasks.withType<JavaCompile>().configureEach {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+    // Database tests switch between Testcontainers and an external PostgreSQL on this
+    // variable, so a change must re-run them instead of reusing cached results.
+    inputs.property("testDbUrl", providers.environmentVariable("NEOBUDDY_TEST_DB_URL").orElse(""))
 }
 
 spotless {

@@ -2,18 +2,16 @@ package com.neobuddy;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.neobuddy.testsupport.DatabaseTest;
 import java.util.List;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 import org.flywaydb.core.api.MigrationState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 
-@SpringBootTest
-@Import(PostgresTestConfiguration.class)
+@DatabaseTest
 class FlywayMigrationTests {
 
   @Autowired private Flyway flyway;

@@ -3,20 +3,17 @@ package com.neobuddy.shared.college;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.neobuddy.PostgresTestConfiguration;
+import com.neobuddy.testsupport.DatabaseTest;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
-@Import(PostgresTestConfiguration.class)
+@DatabaseTest
 @Transactional
 class CollegeRepositoryTests {
 

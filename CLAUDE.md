@@ -19,6 +19,8 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
   ./gradlew bootRun --args='--spring.profiles.active=local'
   - Seed the first college, admin and source inbox with the NEOBUDDY_BOOTSTRAP_* variables
     listed in README. Gmail needs NEOBUDDY_GMAIL_CLIENT_ID and NEOBUDDY_GMAIL_CLIENT_SECRET.
+  - Emails are only logged locally; real ones need NEOBUDDY_EMAIL_PROVIDER=ses, NEOBUDDY_SES_FROM
+    and AWS credentials (see README, "Alerts: push and email").
 - Authorise a source inbox (prints its refresh token once): ./gradlew authorizeSource --console=plain
   - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply

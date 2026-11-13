@@ -1,8 +1,11 @@
 package com.neobuddy.ingestion.source;
 
+import com.neobuddy.ingestion.EmailSummary;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -58,6 +61,23 @@ public class ProcessedEmailStore {
             Integer.class,
             rfcMessageId);
     return count != null && count > 0;
+  }
+
+  public Optional<EmailSummary> find(String rfcMessageId) {
+    List<EmailSummary> found =
+        jdbc.query(
+            "select rfc_message_id, college_id, subject, received_at, event_type, company"
+                + " from processed_email where rfc_message_id = ?",
+            (rs, row) ->
+                new EmailSummary(
+                    rs.getString("rfc_message_id"),
+                    rs.getObject("college_id", UUID.class),
+                    rs.getString("subject"),
+                    rs.getObject("received_at", OffsetDateTime.class).toInstant(),
+                    rs.getString("event_type"),
+                    rs.getString("company")),
+            rfcMessageId);
+    return found.stream().findFirst();
   }
 
   public void markProcessed(String rfcMessageId, String eventType, String company) {

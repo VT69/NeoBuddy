@@ -517,3 +517,115 @@ Vaibhav's Google credentials and has **not** been done; the steps are in the REA
   its duration; acceptable at this volume.
 - The check runs left `verify-t6` colleges and sources in `neobuddy_test`; the next test run
   wipes them.
+
+## T7 · Notification core: outbox, dispatcher, ntfy push and SES email (2026-11-13)
+
+Status: **built and tested against a simulated ntfy and a mocked SES; not yet run against the
+real ones.** `./gradlew build` is green against a local `neobuddy_test` database: 587 tests, 0
+failed, 0 skipped, including `ModularityTests`. The app was started locally and its scheduled
+dispatcher delivered a hand-queued alert to a stand-in ntfy server. The task's own "done when" (a
+real email producing a phone push and an SES email within 3 minutes) needs Vaibhav's ntfy topic,
+SES identity and Gmail credentials and has **not** been done; the steps are in the README under
+"Alerts: push and email". No schema change.
+
+### What was built
+
+- Notification public API (`com.neobuddy.notification`): `NotificationChannel`, `Alert`,
+  `DeliveryResult` (SUCCESS / RETRYABLE / PERMANENT with a content-free reason), and the
+  `DeliveryDead` event.
+- `notification.delivery` (internal): `DeliveryService` (listens to `MatchesFound`, one
+  `delivery` row per verified, enabled channel), `DeliveryStore` (plain SQL), `DeliveryDispatcher`
+  (claim, send, record), `DeliveryDispatchJob` (`@Scheduled` every 10 s + ShedLock),
+  `DeliveryProperties` (`neobuddy.delivery.*`).
+- `notification.channel` (internal): `AlertRenderer`, `NtfyPushChannel` (Spring `RestClient`),
+  `SesEmailChannel` (AWS SDK v2 `SesV2Client`, text + HTML), `LoggingEmailChannel`, `OtpMailer`,
+  a Resilience4j rate limiter per channel, `ChannelProperties` (`neobuddy.channels.*`).
+- Subscriber: `ChannelVerificationService` (ntfy topics, email one-time codes), `ChannelDirectory`
+  (the verified, enabled channels and their decrypted addresses, for delivery), the
+  `EmailOtpSender` port that notification implements.
+- Read APIs the dispatcher needed: `processing.StoredMatches` and `ProcessedEmails.find`.
+- New dependencies, both named in ARCHITECTURE.md: `software.amazon.awssdk:sesv2` 2.59.0 (without
+  the unused Netty client) and `resilience4j-ratelimiter`.
+- Tests (107 new): dispatcher state machine against WireMock ntfy and a mocked SES client (18),
+  outbox fan-out (8), backoff (5), ntfy channel (23), SES channel (15), renderer (12), channel
+  verification (23), and the whole path from a Gmail poll to exactly one ntfy POST (3).
+
+### Decisions
+
+- **`DeliveryService` is a plain, synchronous `@EventListener` on `MatchesFound`.** Processing
+  publishes the event inside the transaction that writes `match_hit`, so the deliveries are
+  written in that same transaction: both commit or neither does. A delivery cannot exist for a
+  rolled-back match, and a crash cannot leave a committed match without deliveries. An
+  after-commit listener would open that gap and would also store the event, with every matched
+  student's row, in the event registry. The rows are created from the stored matches, not from
+  the event, and the foreign key is the last guard. The price: a failure while queueing fails the
+  whole email (it is marked FAILED) instead of keeping matches nobody is told about.
+- **Claiming is `SELECT ... FOR UPDATE SKIP LOCKED` plus a lease.** The claim transaction also
+  pushes `next_attempt_at` 5 minutes ahead (`claim-timeout`) and commits, so alerts are sent
+  without a database transaction held open, and a row whose instance died comes back by itself.
+  A batch that runs past half the lease puts its remaining rows back. Removing the lease makes
+  the concurrency test fail, which is how the test was checked.
+- **Delivery is at-least-once in one narrow case:** the process dies after a channel accepted the
+  alert and before SENT is recorded. Everything else is exactly-once
+  (`unique (match_id, channel_id)`, the claim, ShedLock on top).
+- **Backoff follows the task: 6 attempts, waits of 1, 2, 4, 8, 16 minutes.** ARCHITECTURE.md
+  lists a sixth wait of 32 minutes, which six attempts never reach; the document was left as is.
+- **`DeliveryDead` is published in the transaction that marks the row DEAD**, so an after-commit
+  listener (the Discord admin alert, T10) will see it. It carries ids, the channel type and a
+  reason code only.
+- **Failure reasons never contain content or addresses**: `HTTP 503`, `SES
+  MessageRejectedException`, `IO ResourceAccessException`. Exception messages are dropped because
+  ntfy's contain the topic and SES's the recipient.
+- **A sending rate limit waits instead of failing.** Each channel has a limiter (ntfy 2 per
+  second, SES 1 per second, the sandbox limit); a send waits up to 10 s for its turn, so a big
+  shortlist is paced rather than burning retry attempts.
+- **SES: only a fault of the message is permanent** (`MessageRejected`, `BadRequest`,
+  `NotFound`). Throttling, 5xx, network and credential problems, and refusals about the account
+  (403, sending paused) are retried, so a wrong key can be fixed within the retry window. The
+  first version made 403 permanent; the local run without credentials showed every email going
+  DEAD at once, which is why it changed.
+- **ntfy follows the task literally:** 429 and 5xx retry, any other non-2xx is DEAD. A title with
+  non-ASCII characters is sent RFC 2047 encoded. An address that is not a valid topic name is
+  refused before it can become part of a URL.
+- **`neobuddy.channels.email.provider` chooses the email channel** (`ses` or `log`), not the
+  profile alone: `local` defaults to `log`, and `NEOBUDDY_EMAIL_PROVIDER=ses` turns real email on
+  locally, which the "done when" needs. With `ses`, a missing `NEOBUDDY_SES_FROM` stops startup.
+- **Channel types nothing can send to yet (Discord) get no delivery rows**, rather than rows that
+  would end DEAD.
+- **A channel switched off or unverified after queueing is not sent to**; the delivery ends DEAD
+  with `CHANNEL_UNAVAILABLE`.
+- **Email codes are stored as SHA-256 of user id + address + code.** The user id keeps two users'
+  equal codes from colliding on `link_code`'s primary key; the address means a code cannot
+  verify an address it was not sent to. Every confirmation counts as an attempt under a row
+  lock; after the fifth wrong one even the right code is refused.
+- **A push channel is verified as soon as it is created**, because the server invents the topic.
+  Creating it again replaces the topic.
+- **Module boundaries:** notification reads matches, emails and channels through new read APIs
+  of their owning modules instead of joining their tables. `ChannelVerificationService` stays in
+  subscriber and sends its email through a port, since subscriber cannot depend on notification.
+  These are additions to public interfaces (`StoredMatches`, `ProcessedEmails.find`,
+  `ChannelDirectory`); nothing existing changed.
+
+### Not verified
+
+- **Real ntfy.** ntfy.sh is not reachable from the build environment. In particular, that ntfy
+  decodes an RFC 2047 `Title` header is taken from its documentation, not observed.
+- **Real SES.** The request shape and error mapping were tested against a mocked client only.
+- **The 3-minute end-to-end check** with real Gmail, phone and inbox.
+- Testcontainers mode and CI remain unexercised (see T1).
+
+### Follow-ups
+
+- **ntfy.sh's free tier** allows roughly 250 messages a day per sender IP; a batch-wide shortlist
+  will exceed it. Before opening to the batch: a self-hosted ntfy or a paid plan.
+- **The student's row leaves NeoBuddy** in the push body (to ntfy) and the email (to SES). That is
+  the product, but the consent notice in T9 should say so.
+- `DeliveryDead` has no listener yet (admin alert on Discord, T10); DEAD rows are visible only in
+  the table until the admin console (T11). No metrics yet (T11).
+- With the `log` provider a one-time code is neither sent nor logged, so email verification
+  cannot be completed locally without SES; T9 has to decide how to develop against it.
+- Rate limiting of code requests per user and IP belongs to the T9 endpoints.
+- A replayed email queues a delivery for a channel the student verified after the first run;
+  acceptable for restarts, worth a thought for the admin reprocess endpoint (T11).
+- Expired `link_code` rows are only removed when their user asks again; a periodic purge can join
+  the 180-day snippet purge.

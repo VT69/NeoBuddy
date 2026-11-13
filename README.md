@@ -133,6 +133,45 @@ from processed_email e left join match_hit m on m.email_id = e.rfc_message_id
 order by e.received_at desc limit 5;
 ```
 
+## Alerts: push and email
+
+Every match is queued once for each of the student's verified, enabled channels (the `delivery`
+table) and sent by a dispatcher that runs every 10 seconds. A failed send is retried after 1, 2,
+4, 8 and 16 minutes; after the sixth failure, or at once if retrying cannot help, the delivery is
+`DEAD`.
+
+**Push (ntfy).** Install the ntfy app, subscribe to a topic name that only you know (letters,
+digits, `-` and `_`, up to 64 characters; anyone who knows the name can read your alerts) and
+start NeoBuddy with `NEOBUDDY_BOOTSTRAP_ADMIN_NTFY_TOPIC` set to it. Alerts go to
+`https://ntfy.sh`; point `NEOBUDDY_NTFY_BASE_URL` at your own server to change that.
+
+**Email (Amazon SES).** The `local` profile only logs that an email would have been sent. To send
+real ones:
+
+```bash
+export NEOBUDDY_EMAIL_PROVIDER=ses
+export NEOBUDDY_SES_FROM='NeoBuddy <alerts@your-domain>'   # an identity verified in SES
+export NEOBUDDY_SES_REGION=ap-south-1                      # where that identity lives (default)
+export AWS_ACCESS_KEY_ID=...                               # or AWS_PROFILE, or an instance role;
+export AWS_SECRET_ACCESS_KEY=...                           # needs ses:SendEmail
+```
+
+While the SES account is in the sandbox, the recipient (`NEOBUDDY_BOOTSTRAP_ADMIN_PERSONAL_EMAIL`)
+must be a verified identity in the same region too, otherwise SES rejects the message and the
+delivery goes `DEAD` with `SES MessageRejectedException`. Wrong credentials or a missing
+permission show up as `RETRY` with `SES SesV2Exception HTTP 403`. Outside the `local` profile the
+provider is `ses` and `NEOBUDDY_SES_FROM` is required.
+
+**Check it end to end:** repeat the check from the previous section. Within about two and a half
+minutes of the email arriving (one poll plus one dispatcher run) the phone gets a push and the
+personal address an email. To see what the outbox did:
+
+```sql
+select c.type, d.status, d.attempts, d.next_attempt_at, d.sent_at, d.last_error
+from delivery d join channel c on c.id = d.channel_id
+order by d.next_attempt_at desc limit 10;
+```
+
 ## Test
 
 ```bash

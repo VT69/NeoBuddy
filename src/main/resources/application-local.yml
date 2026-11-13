@@ -8,6 +8,13 @@ spring:
     username: ${DB_USERNAME:neobuddy}
     password: ${DB_PASSWORD:neobuddy}
 
+neobuddy:
+  channels:
+    email:
+      # Locally, emails are only logged. To send real ones set NEOBUDDY_EMAIL_PROVIDER=ses,
+      # NEOBUDDY_SES_FROM and AWS credentials (see README).
+      provider: ${NEOBUDDY_EMAIL_PROVIDER:log}
+
 management:
   endpoint:
     health:

@@ -1,4 +1,4 @@
-package com.neobuddy.processing.extract;
+package com.neobuddy.ingestion;
 
 /**
  * What the sender says about an attachment. All three values are untrusted: the real type is

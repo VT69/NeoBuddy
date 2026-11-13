@@ -4,6 +4,7 @@ import static com.neobuddy.processing.extract.SyntheticFiles.SHORTLIST;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import com.neobuddy.processing.extract.ExtractionResult.Status;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

@@ -1,5 +1,6 @@
 package com.neobuddy.processing.extract;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import java.util.List;
 
 /**

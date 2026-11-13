@@ -1,6 +1,7 @@
 package com.neobuddy.processing.extract;
 
 import com.github.pjfanning.xlsx.StreamingReader;
+import com.neobuddy.ingestion.AttachmentRef;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;

@@ -1,5 +1,6 @@
 package com.neobuddy.processing.extract;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import java.io.ByteArrayInputStream;
 import java.util.List;
 import java.util.stream.Stream;

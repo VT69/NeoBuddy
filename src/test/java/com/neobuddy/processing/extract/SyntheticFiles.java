@@ -2,6 +2,7 @@ package com.neobuddy.processing.extract;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

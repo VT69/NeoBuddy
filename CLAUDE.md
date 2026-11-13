@@ -24,6 +24,8 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
 - Authorise a source inbox (prints its refresh token once): ./gradlew authorizeSource --console=plain
   - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply
+- Container image: ./gradlew jibDockerBuild (needs Docker). Production runbook: deploy/README.md.
+- Terraform checks (AWS mocked): cd infra/terraform && terraform init -backend=false && terraform test
 
 ## Rules
 - Modules: ingestion, processing, subscriber, notification, web, discord, shared. Cross-module access

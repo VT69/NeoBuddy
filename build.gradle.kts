@@ -2,6 +2,7 @@ plugins {
     java
     alias(libs.plugins.spring.boot)
     alias(libs.plugins.spotless)
+    alias(libs.plugins.jib)
 }
 
 group = "com.neobuddy"
@@ -81,6 +82,45 @@ tasks.register<JavaExec>("authorizeSource") {
     standardInput = System.`in`
 }
 
+// Container image (docs/ARCHITECTURE.md: "Jib for images"). CI pushes it to ECR with:
+//   ./gradlew jib -Djib.to.image=<ecr-repository-url>:<git-sha>
+// Locally, ./gradlew jibDockerBuild builds it into a running Docker daemon (one platform only).
+jib {
+    from {
+        // Eclipse Temurin 21 JRE on Ubuntu 24.04; the tag is multi-architecture.
+        image = "eclipse-temurin:21-jre-noble"
+        platforms {
+            platform {
+                architecture = "arm64"
+                os = "linux"
+            }
+            platform {
+                architecture = "amd64"
+                os = "linux"
+            }
+        }
+    }
+    to {
+        image = "neobuddy"
+    }
+    container {
+        mainClass = "com.neobuddy.NeoBuddyApplication"
+        // An unprivileged uid with no entry in /etc/passwd: it owns nothing in the image, so the
+        // application cannot modify its own files.
+        user = "10001:10001"
+        ports = listOf("8080")
+        // Java 21 reads the container's memory limit itself; the heap gets a share of it, leaving
+        // room for metaspace, thread stacks and direct buffers inside the same limit.
+        jvmFlags = listOf(
+            "-XX:InitialRAMPercentage=40",
+            "-XX:MaxRAMPercentage=65",
+            "-XX:+ExitOnOutOfMemoryError",
+        )
+        environment = mapOf("TZ" to "UTC")
+        labels.put("org.opencontainers.image.source", "https://github.com/VT69/NeoBuddy")
+    }
+}
+
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.compilerArgs.add("-parameters")
@@ -91,6 +131,9 @@ tasks.withType<Test>().configureEach {
     // Database tests switch between Testcontainers and an external PostgreSQL on this
     // variable, so a change must re-run them instead of reusing cached results.
     inputs.property("testDbUrl", providers.environmentVariable("NEOBUDDY_TEST_DB_URL").orElse(""))
+    // DeployScriptsTests runs these scripts, so a change to them must re-run the tests.
+    inputs.dir("deploy").withPropertyName("deployScripts")
+    inputs.dir(".github/scripts").withPropertyName("ciScripts")
 }
 
 spotless {

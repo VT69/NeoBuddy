@@ -172,6 +172,12 @@ from delivery d join channel c on c.id = d.channel_id
 order by d.next_attempt_at desc limit 10;
 ```
 
+## Production
+
+NeoBuddy runs on AWS (EC2 in `ap-south-1`) and deploys itself from `main`. Infrastructure is in
+`infra/terraform`; setup, deploys, rollback and restoring backups are in
+[deploy/README.md](deploy/README.md).
+
 ## Test
 
 ```bash

@@ -1,0 +1,80 @@
+# Production stack on the EC2 instance: PostgreSQL, the app, and Caddy in front for HTTPS.
+# Run it through compose.sh, which supplies the three env files this file interpolates from:
+#   /etc/neobuddy/infra.env  written once by the instance's user-data (region, bucket, log group)
+#   /etc/neobuddy/app.env    rendered from SSM /neobuddy/prod/* by render-env.sh (mode 600)
+#   /etc/neobuddy/image.env  the image being run, written by deploy.sh
+name: neobuddy
+
+# Every container logs to CloudWatch. Non-blocking, so a CloudWatch outage can never stall the
+# app; lines beyond the 4 MB buffer are dropped instead.
+x-logging: &logging
+  driver: awslogs
+  options:
+    awslogs-region: ${AWS_REGION:?}
+    awslogs-group: ${LOG_GROUP:?}
+    tag: "{{.Name}}"
+    mode: non-blocking
+    max-buffer-size: 4m
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: neobuddy
+      POSTGRES_USER: neobuddy
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be in SSM}
+    volumes:
+      # A named volume on the instance's encrypted EBS root volume.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U neobuddy -d neobuddy"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+    logging: *logging
+
+  app:
+    image: ${NEOBUDDY_IMAGE:?NEOBUDDY_IMAGE is set by deploy.sh}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ${NEOBUDDY_ETC:-/etc/neobuddy}/app.env
+    environment:
+      DB_URL: jdbc:postgresql://db:5432/neobuddy
+      DB_USERNAME: neobuddy
+      AWS_REGION: ${AWS_REGION:?}
+    # Loopback only, for deploy.sh's health check; the security group would block it anyway.
+    ports:
+      - "127.0.0.1:8080:8080"
+    # The JVM sizes its heap from this limit (MaxRAMPercentage in the image).
+    mem_limit: 1100m
+    # Spring's graceful shutdown lets a running dispatch or poll finish.
+    stop_grace_period: 45s
+    logging: *logging
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      NEOBUDDY_DOMAIN: ${NEOBUDDY_DOMAIN:?NEOBUDDY_DOMAIN must be in SSM}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and ACME account; losing them only means Caddy fetches new ones.
+      - caddy_data:/data
+      - caddy_config:/config
+    mem_limit: 128m
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

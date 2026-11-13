@@ -8,6 +8,7 @@ spring-boot = "4.1.2"
 spring-modulith = "2.1.2"
 shedlock = "7.11.0"
 spotless = "8.11.0"
+jib = "3.5.4"
 google-java-format = "2.0.0"
 tika = "4.2.0"
 poi = "6.0.0"
@@ -79,3 +80,4 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
+jib = { id = "com.google.cloud.tools.jib", version.ref = "jib" }

@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the NeoBuddy database backup every night
+
+[Timer]
+# 20:30 UTC is 02:00 IST, when no placement mail is expected.
+OnCalendar=*-*-* 20:30:00 UTC
+RandomizedDelaySec=10min
+# A night missed while the instance was off runs at the next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

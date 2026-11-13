@@ -1,0 +1,21 @@
+# HTTPS for the public domain. Caddy obtains and renews the certificate from Let's Encrypt by
+# itself, which needs the domain's A record pointing at the Elastic IP and port 80 open.
+{$NEOBUDDY_DOMAIN} {
+	encode zstd gzip
+
+	# Of the actuator, only health is public; metrics stay on the internal network.
+	@actuator {
+		path /actuator /actuator/*
+		not path /actuator/health /actuator/health/*
+	}
+	respond @actuator 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy app:8080
+}

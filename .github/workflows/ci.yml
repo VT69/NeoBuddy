@@ -36,3 +36,36 @@ jobs:
         with:
           name: test-reports
           path: build/reports/tests
+
+  # Terraform, the deploy scripts and the production compose file, checked without AWS.
+  infra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.2"
+
+      - name: Terraform format, validate and test (AWS mocked)
+        working-directory: infra/terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false
+          terraform validate
+          terraform test
+
+      - name: Shell scripts
+        run: shellcheck deploy/*.sh .github/scripts/*.sh
+
+      - name: Production compose file and Caddyfile
+        run: |
+          etc="$(mktemp -d)"
+          printf 'AWS_REGION=ap-south-1\nLOG_GROUP=/neobuddy/prod\n' > "$etc/infra.env"
+          printf "DB_PASSWORD='x'\nNEOBUDDY_DOMAIN='neobuddy.example.com'\n" > "$etc/app.env"
+          printf 'NEOBUDDY_IMAGE=neobuddy:ci\n' > "$etc/image.env"
+          NEOBUDDY_HOME="$PWD/deploy" NEOBUDDY_ETC="$etc" deploy/compose.sh config --quiet
+          docker run --rm -e NEOBUDDY_DOMAIN=neobuddy.example.com \
+            -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2 \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

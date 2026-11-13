@@ -158,6 +158,10 @@ neobuddy:
 server:
   port: ${PORT:8080}
   shutdown: graceful
+  # In production Caddy terminates HTTPS in front of the app; trust its X-Forwarded-* headers so
+  # redirects and sign-in callbacks use the public https address. Tomcat only accepts them from
+  # private-network addresses, which is where Caddy sits.
+  forward-headers-strategy: native
 
 management:
   endpoints:
@@ -166,6 +170,8 @@ management:
         include: health
   endpoint:
     health:
+      # Public: status only. The local profile shows details.
+      show-details: never
       probes:
         enabled: true
 

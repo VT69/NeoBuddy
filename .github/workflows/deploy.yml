@@ -1,0 +1,138 @@
+name: Deploy
+
+# Deploys main to the production instance once CI has passed on it. Also runnable by hand from
+# the Actions tab, on main only, to redeploy or roll back to an image already in ECR.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Roll back: the full git SHA of an image already in ECR. Empty deploys the head of main."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  id-token: write # for the OIDC token that assumes the AWS deploy role
+
+# One deploy at a time, and never cancel one half way.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+
+jobs:
+  deploy:
+    # workflow_run fires for every CI run on main, including failed ones and pull requests whose
+    # head branch is called main; only a successful CI run of a push to main deploys.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      INSTANCE_ID: ${{ vars.AWS_INSTANCE_ID }}
+      REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+      DOMAIN: ${{ vars.NEOBUDDY_DOMAIN }}
+    steps:
+      - name: Check the repository variables
+        run: |
+          missing=()
+          for name in ROLE_ARN INSTANCE_ID REPOSITORY_URL DOMAIN; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Repository variables missing (see deploy/README.md): ${missing[*]}"
+            exit 1
+          fi
+
+      - uses: actions/checkout@v5
+        with:
+          # The commit CI tested, not whatever main points to by now.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Choose the image tag
+        id: tag
+        env:
+          ROLLBACK_TAG: ${{ inputs.image_tag }}
+        run: |
+          if [ -n "$ROLLBACK_TAG" ]; then
+            if ! [[ "$ROLLBACK_TAG" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "::error::image_tag must be a full 40-character git SHA"
+              exit 1
+            fi
+            echo "tag=$ROLLBACK_TAG" >> "$GITHUB_OUTPUT"
+            echo "rollback=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+            echo "rollback=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ env.ROLE_ARN }}
+          role-session-name: neobuddy-deploy-${{ github.run_id }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: aws-actions/amazon-ecr-login@v2
+
+      # Tags are immutable in ECR, so a re-run (or a rollback) must not push the tag again.
+      - name: Is the image already in ECR?
+        id: image
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          if aws ecr describe-images --repository-name "${REPOSITORY_URL##*/}" \
+               --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: A rollback needs an existing image
+        if: steps.tag.outputs.rollback == 'true' && steps.image.outputs.exists != 'true'
+        run: |
+          echo "::error::No image tagged ${{ steps.tag.outputs.tag }} in ECR"
+          exit 1
+
+      - uses: actions/setup-java@v5
+        if: steps.image.outputs.exists != 'true'
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v5
+        if: steps.image.outputs.exists != 'true'
+
+      # CI already ran the tests on this commit; Jib only needs the compiled classes.
+      - name: Build and push the image (linux/arm64 and linux/amd64)
+        if: steps.image.outputs.exists != 'true'
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: ./gradlew jib -Djib.to.image="$REPOSITORY_URL:$TAG" --console=plain
+
+      - name: Deploy on the instance
+        run: .github/scripts/ssm-deploy.sh "$INSTANCE_ID" "$REPOSITORY_URL:${{ steps.tag.outputs.tag }}"
+
+      - name: Check https://${{ env.DOMAIN }}/actuator/health
+        run: |
+          # Five minutes: on the very first deploy Caddy still has to obtain the certificate.
+          for attempt in $(seq 1 30); do
+            if body="$(curl -fsS -m 10 "https://$DOMAIN/actuator/health")" &&
+               jq -e '.status == "UP" and (has("components") | not)' <<<"$body" >/dev/null; then
+              echo "Public health: $body"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::https://$DOMAIN/actuator/health did not report UP"
+          exit 1

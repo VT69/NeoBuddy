@@ -629,3 +629,101 @@ SES identity and Gmail credentials and has **not** been done; the steps are in t
   acceptable for restarts, worth a thought for the admin reprocess endpoint (T11).
 - Expired `link_code` rows are only removed when their user asks again; a periodic purge can join
   the 180-day snippet purge.
+
+## T8 · AWS infrastructure and continuous deployment (2026-11-13)
+
+Status: **written and checked offline; nothing has been created in AWS.** Every item of the "done
+when" needs Vaibhav's AWS account, domain and go-ahead, and none has been done: `terraform
+apply` (asked for approval first, as the task requires), a deploy from `main`, the public health
+check, the email from the cloud. `./gradlew build` is green against a local `neobuddy_test`
+database: 612 tests, 0 failed, 0 skipped. `terraform validate` and `terraform test` (10 runs, AWS
+mocked) pass with Terraform 1.17.2 and AWS provider 6.73.0. No schema change.
+
+### What was built
+
+- **Image:** Jib (named in ARCHITECTURE.md; plugin 3.5.4), `eclipse-temurin:21-jre-noble`,
+  linux/arm64 and linux/amd64, uid 10001 with no passwd entry, `MaxRAMPercentage=65`,
+  `ExitOnOutOfMemoryError`. Checked by building a tarball and reading its config.
+- **`deploy/`:** `docker-compose.prod.yml` (postgres:16 on a named volume, app, caddy:2; awslogs
+  driver, non-blocking; memory limits sized for 2 GB), `Caddyfile` (automatic HTTPS, actuator
+  limited to health, HSTS), `compose.sh`, `render-env.sh`, `deploy.sh`, `backup.sh`, a systemd
+  service and timer, and the runbook `deploy/README.md`.
+- **`infra/terraform`:** S3 backend with DynamoDB lock (partial config in `backend.hcl`), ECR with
+  an untagged-image rule, EC2 t4g.small on Amazon Linux 2023 with Elastic IP, a security group
+  allowing only 80/443, the instance role, the backup bucket, the log group, the GitHub OIDC
+  provider and deploy role, the SES domain identity, outputs for the DNS records and the GitHub
+  variables. Lock file with every platform's checksums, from HashiCorp's signed SHA256SUMS.
+- **`.github/workflows/deploy.yml`** + `.github/scripts/ssm-deploy.sh`; a new `infra` job in CI
+  (terraform fmt/validate/test, shellcheck, `compose config`, `caddy validate`).
+- **App:** `server.forward-headers-strategy: native` (behind Caddy) and `show-details: never`
+  stated explicitly.
+- **Tests:** `PublicHealthEndpointTests` (8: health public with the status only, probes, other
+  actuator endpoints and pages refused), `DeployScriptsTests` (17, Linux only, `aws` and compose
+  stubbed), `infra/terraform/tests/main.tftest.hcl` (10).
+
+### Decisions
+
+- **Deploy files travel inside the SSM command.** The workflow tars `deploy/` (about 5 KB in
+  base64) into the Run Command, so the instance needs no access to the repository and always
+  runs the scripts of the commit it deploys. User-data only installs Docker, the compose plugin
+  and swap, and writes `/etc/neobuddy/infra.env`.
+- **The database is on the root volume, so the instance is never replaced by accident:**
+  `ignore_changes = [ami, user_data]`, `prevent_destroy`, termination protection. Moving to a new
+  instance is a documented manual procedure with backup and restore. A separate data volume would
+  be cleaner but is not on the task's list; see follow-ups.
+- **Write-only backups.** The instance role has `s3:PutObject` only, as listed. Restore uses a
+  presigned URL made with the admin's credentials. A compromised instance cannot read or delete
+  backups. The dump is written locally and checked with `gzip -t` before upload, so a dump that
+  failed half way never reaches the bucket.
+- **No `AmazonSSMManagedInstanceCore`.** It would let the instance read every parameter in the
+  account (`ssm:GetParameter*` on `*`). The role lists the Session Manager and Run Command actions
+  itself and reads parameters only under `/neobuddy/prod`.
+- **IMDSv2 with hop limit 2**, so the app can reach the role's credentials (SES) from inside its
+  container.
+- **Env file format:** `KEY='value'`. Compose takes single-quoted values literally (checked with
+  `docker compose config`, and in a test), so `$`, `{` and `"` survive; values with a quote or a
+  line break are refused. Names are printed, values never.
+- **ECR tags are immutable** (the SHA always means one image), so the workflow skips the build
+  when the tag exists (re-runs, rollbacks). The untagged rule (7 days) is safe for multi-arch
+  images: ECR does not expire an image an index still references. I checked this in the ECR
+  documentation, but have not seen it happen.
+- **Deploy trigger:** `workflow_run` after CI succeeds on a push to `main`, or a manual run on
+  `main` (optionally with an older SHA to roll back). The OIDC trust is
+  `repo:VT69/NeoBuddy:ref:refs/heads/main` exactly.
+- **Two health checks:** `deploy.sh` polls the app on the instance's loopback (published on
+  127.0.0.1 only), then the workflow checks `https://<domain>/actuator/health` from outside,
+  requiring UP and no `components`.
+- **`standard` CPU credits**, so a busy spell is throttled rather than billed.
+- **DynamoDB locking as asked.** Terraform 1.11+ marks `dynamodb_table` deprecated in favour of
+  S3-native locking (`use_lockfile = true`); switching later is a one-line backend change.
+- **Docker Compose v5.6.1** is downloaded by user-data and checked against the release's SHA-256.
+- **Found while checking:** the script tests were cached by Gradle when only a script changed
+  (fixed by declaring `deploy/` and `.github/scripts/` as test inputs); `deploy.sh` would have
+  failed when run from its installed copy for a rollback; Jib's 1970 image timestamps make
+  Docker's `until=` prune filter meaningless.
+
+### Not verified
+
+- **Anything in AWS:** no apply, no plan against a real account. IAM policies were checked by the
+  mocked tests for their intent, not by AWS. In particular `ses:SendEmail` on `identity/*` and the
+  hand-written Session Manager permissions are untested.
+- **The workflow** has never run; actionlint was not available here.
+- **shellcheck and `caddy validate`** were not run locally (installing them was not permitted in
+  this environment); the CI `infra` job runs both. Scripts pass `bash -n`; YAML files parse.
+- **The arm64 image** was not run; only the amd64 variant was built locally as a tarball.
+- **User-data** has not booted an instance.
+
+### Follow-ups
+
+- **Ask before apply:** the plan creates only what the task lists. Not created, and would need a
+  yes: a separate EBS data volume (safer instance replacement), a CloudWatch alarm on missing
+  backups or a failing health check, a lifecycle rule capping tagged images in ECR (they
+  accumulate, at a few cents a month), an SES MAIL FROM domain and DMARC record, and Route 53 for
+  the DNS records.
+- **DNS records are for Vaibhav to choose and create**: the A record and three DKIM CNAMEs come
+  out of `terraform output dns_records`.
+- ARCHITECTURE.md says "nothing in `.env` files"; the task asked for an env file rendered from
+  SSM (mode 600, root only), which is what was built.
+- OS patching is manual (`dnf upgrade --releasever=latest`), see the runbook.
+- Backup failures are visible only in the instance's journal until there is an alarm.
+- The Jib Gradle plugin triggers a Gradle 10 deprecation warning when its tasks run.

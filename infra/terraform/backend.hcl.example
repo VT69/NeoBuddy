@@ -1,0 +1,5 @@
+# Copy to backend.hcl (git-ignored); the names are the ones created in deploy/README.md,
+# "One-time state bootstrap".
+bucket         = "neobuddy-tfstate-<account-id>"
+dynamodb_table = "neobuddy-tflock"
+region         = "ap-south-1"

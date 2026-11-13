@@ -9,7 +9,14 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
 
 ## Commands
 - Build + all tests: ./gradlew build
-- Run locally: docker compose up -d db && ./gradlew bootRun --args='--spring.profiles.active=local'
+  - With Docker running, DB tests use Testcontainers (this is what CI does).
+  - Without Docker, point them at a local PostgreSQL; the database is wiped on every run and its
+    name must end in _test:
+    NEOBUDDY_TEST_DB_URL=jdbc:postgresql://localhost:5432/neobuddy_test NEOBUDDY_TEST_DB_USER=...
+    NEOBUDDY_TEST_DB_PASSWORD=... ./gradlew build
+- Run locally (needs PostgreSQL on localhost:5432 with database neobuddy, see README):
+  ./gradlew bootRun --args='--spring.profiles.active=local'
+  - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply
 
 ## Rules

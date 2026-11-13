@@ -76,3 +76,55 @@ machine has no working Docker and the repo has no remote. See "Verification" bel
 - The branch is `master` but tooling expects `main`; rename before the first push if wanted.
 - `Claude Code playbook.md` is still in the repo root; move to `docs/` if it should be tracked.
 - T5+: `NeoBuddyProperties`, `FieldEncryptor`, `Clock` in `shared`; remaining entities per task.
+
+## T1 follow-up · Database tests without Docker (2026-11-13)
+
+Status: **built, database path still unverified.** The 19 tests that need no database pass. The
+5 database tests and the local app start have not passed yet: at the time of writing nothing was
+listening on `localhost:5432` and Docker was not available.
+
+### What was built
+
+- `testsupport.DatabaseTest`: one meta-annotation (`@SpringBootTest`, `test` profile,
+  `TestDatabaseInitializer`) used by every database test. Replaces `PostgresTestConfiguration`.
+- `testsupport.TestDatabaseInitializer`: before the context starts, picks the database once per
+  test run. With `NEOBUDDY_TEST_DB_URL` (+ `_USER`, `_PASSWORD`) it runs Flyway clean + migrate
+  against that PostgreSQL; otherwise it starts one shared Testcontainers Postgres 16.
+- `testsupport.ExternalTestDatabase`: reads the variables and refuses any database whose name
+  does not end in `_test` (checked on the database name only, not host or URL parameters).
+  Covered by `ExternalTestDatabaseTests` (15 cases).
+- `build.gradle.kts`: `NEOBUDDY_TEST_DB_URL` is a test-task input, so switching modes re-runs tests.
+- README and CLAUDE.md Commands describe both ways to run and test. `ci.yml` is unchanged and
+  does not set the variable, so CI stays on Testcontainers.
+
+### Decisions
+
+- **Clean stays disabled in the application.** `spring.flyway.clean-disabled` is never set; only
+  the test initializer builds a Flyway with clean enabled, and only when the `test` profile is
+  active and the name guard passes.
+- **Testcontainers mode no longer uses `@ServiceConnection`**; both modes set
+  `spring.datasource.*` from the same initializer so there is one code path.
+- **Missing user or password with the URL set is an error**, not a silent fallback to Docker.
+
+### Verification
+
+| Check | Result |
+| --- | --- |
+| `./gradlew build -x test` | Pass |
+| `ModularityTests` (4) + `ExternalTestDatabaseTests` (15) | Pass |
+| Guard: `NEOBUDDY_TEST_DB_URL=.../neobuddy` | Refused: "Refusing to clean database 'neobuddy'" |
+| `./gradlew build --rerun-tasks` with `.../neobuddy_test` (local PostgreSQL 18.7) | Pass: 24 tests, 0 failures (Flyway 3, Modularity 4, College 2, guard 15) |
+| App start with `local` profile (boot jar, `PORT=8081`) | Pass: Flyway applied V1 and V2 to `neobuddy`, started, `/actuator/health` UP with `db` UP; `/` returns 403 |
+
+Update, later the same day: PostgreSQL 18.7 was installed locally with the `neobuddy` role and
+the `neobuddy` and `neobuddy_test` databases, and the last two checks were rerun and pass. The
+status line at the top of this section is superseded: the external-database path is verified.
+
+### Follow-ups
+
+- Port 8080 on the dev machine is taken by IIS, so run locally with `PORT=8081` (documented in
+  the README).
+- Testcontainers mode has still never run anywhere (no Docker locally, CI not triggered yet);
+  the first CI run on GitHub is its first real test.
+- Local PostgreSQL is 18 while production and CI target 16; nothing in the schema is
+  version-specific, but CI on 16 stays the reference.

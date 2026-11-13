@@ -1,0 +1,5 @@
+# Settings for the "test" profile only.
+neobuddy:
+  encryption:
+    # Not a secret: the bytes 0..31 in base64. Exists so tests can encrypt and decrypt.
+    key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=

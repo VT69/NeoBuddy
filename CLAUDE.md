@@ -14,8 +14,10 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
     name must end in _test:
     NEOBUDDY_TEST_DB_URL=jdbc:postgresql://localhost:5432/neobuddy_test NEOBUDDY_TEST_DB_USER=...
     NEOBUDDY_TEST_DB_PASSWORD=... ./gradlew build
-- Run locally (needs PostgreSQL on localhost:5432 with database neobuddy, see README):
+- Run locally (needs PostgreSQL on localhost:5432 with database neobuddy, and env
+  NEOBUDDY_ENCRYPTION_KEY set to a base64 32-byte key; see README):
   ./gradlew bootRun --args='--spring.profiles.active=local'
+  - Seed the first college and admin with the NEOBUDDY_BOOTSTRAP_* variables listed in README.
   - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply
 

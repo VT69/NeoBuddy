@@ -19,6 +19,27 @@ spring:
     locations: classpath:db/migration
 
 neobuddy:
+  encryption:
+    # AES-256 key for encrypted columns: 32 random bytes in base64 (openssl rand -base64 32).
+    # Required. Losing it makes every stored channel address and refresh token unreadable.
+    key: ${NEOBUDDY_ENCRYPTION_KEY:}
+  bootstrap:
+    # v1 seed: the first college and its admin, applied at every startup (idempotent).
+    # All values come from the environment; leave the slug empty to seed nothing.
+    college:
+      slug: ${NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG:}
+      name: ${NEOBUDDY_BOOTSTRAP_COLLEGE_NAME:}
+      # Comma-separated lists.
+      allowed-email-domains: ${NEOBUDDY_BOOTSTRAP_COLLEGE_EMAIL_DOMAINS:}
+      sender-allowlist: ${NEOBUDDY_BOOTSTRAP_COLLEGE_SENDER_ALLOWLIST:}
+      # Defaults to ^[A-Z0-9]{8}$ when empty.
+      neo-id-pattern: ${NEOBUDDY_BOOTSTRAP_COLLEGE_NEO_ID_PATTERN:}
+    admin:
+      email: ${NEOBUDDY_BOOTSTRAP_ADMIN_EMAIL:}
+      neo-id: ${NEOBUDDY_BOOTSTRAP_ADMIN_NEO_ID:}
+      reg-no: ${NEOBUDDY_BOOTSTRAP_ADMIN_REG_NO:}
+      ntfy-topic: ${NEOBUDDY_BOOTSTRAP_ADMIN_NTFY_TOPIC:}
+      personal-email: ${NEOBUDDY_BOOTSTRAP_ADMIN_PERSONAL_EMAIL:}
   extraction:
     # Attachment safety limits (docs/ARCHITECTURE.md, Non-functional design).
     max-attachment-size: 25MB

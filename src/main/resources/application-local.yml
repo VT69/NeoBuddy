@@ -1,0 +1,13 @@
+# Local development against the Postgres from docker-compose.yml.
+# The fallback credentials below are the throwaway ones for that local container only;
+# override them with DB_URL / DB_USERNAME / DB_PASSWORD if your setup differs.
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/neobuddy}
+    username: ${DB_USERNAME:neobuddy}
+    password: ${DB_PASSWORD:neobuddy}
+
+management:
+  endpoint:
+    health:
+      show-details: always

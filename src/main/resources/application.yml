@@ -18,6 +18,14 @@ spring:
     enabled: true
     locations: classpath:db/migration
 
+neobuddy:
+  extraction:
+    # Attachment safety limits (docs/ARCHITECTURE.md, Non-functional design).
+    max-attachment-size: 25MB
+    excel-streaming-threshold: 5MB
+    timeout: 30s
+    max-concurrent: 2
+
 server:
   port: ${PORT:8080}
   shutdown: graceful

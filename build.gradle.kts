@@ -34,6 +34,14 @@ dependencies {
     implementation(libs.shedlock.spring)
     implementation(libs.shedlock.provider.jdbc.template)
 
+    // Extraction (processing module)
+    implementation(libs.tika.core)
+    implementation(libs.poi.ooxml)
+    implementation(libs.excel.streaming.reader)
+    implementation(libs.pdfbox)
+    implementation(libs.jsoup)
+    implementation(libs.commons.csv)
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 

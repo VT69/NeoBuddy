@@ -422,3 +422,98 @@ T6 (Gmail ingestion) was sent in the same message and has **not** been started, 
   the channel-verification tasks.
 - Back up `NEOBUDDY_ENCRYPTION_KEY` separately from the database; a restore needs both.
 - The verification run left a `verify-college` row in `neobuddy_test`; the next test run wipes it.
+
+## T6 · Gmail ingestion (2026-11-13)
+
+Status: **built and tested against a simulated Gmail; not yet run against the real one.**
+`./gradlew build` is green against the local `neobuddy_test` database: 480 tests, 0 failed, 0
+skipped, including `ModularityTests`. The app starts locally with the poller on. The task's own
+"done when" (a real email to the real inbox producing a `match_hit` row within one poll) needs
+Vaibhav's Google credentials and has **not** been done; the steps are in the README. Branch
+`t6-ingestion`, cut from `t5-subscriber`. No schema change.
+
+### What was built
+
+- Ingestion public API (`com.neobuddy.ingestion`): `EmailIngested`, `SourceAuthExpired`,
+  `MailReader` + `LoadedMail` (how processing fetches a message), `ProcessedEmails` (how
+  processing records the outcome).
+- `ingestion.source` (internal): `SourceInbox` entity for `mail_source` (refresh token through
+  `EncryptedStringConverter`), the `MailSource` port and its types, `SenderAllowlist`,
+  `ProcessedEmailStore` (`insert ... on conflict (rfc_message_id) do nothing`), `IngestionWriter`
+  (the transactions), `SourceSync` (one poll of one source), `MailPoller` (`@Scheduled` +
+  `@SchedulerLock`), `SourceBootstrap` + runner for `neobuddy.bootstrap.source.*`.
+- `ingestion.gmail` (internal): `GmailMailSource` (history paging, metadata and full fetch,
+  recursive MIME walk, streamed attachment download, stale-cursor and `invalid_grant` handling,
+  Resilience4j retry on 429, 5xx and read timeouts), `GmailMailSourceFactory`, `GmailProperties`.
+- `ingestion.tools.SourceAuthorizer` and the Gradle task `authorizeSource`: the loopback OAuth
+  flow with PKCE and state, written against the JDK only; prints the refresh token once.
+- `processing.pipeline` (internal): `EmailIngestedListener` (`@ApplicationModuleListener`) and
+  `StoredProcessingResults`, the `ProcessingResultSink` that writes `match_hit`.
+- Tests: the Gmail adapter against WireMock (21), the poller against WireMock and PostgreSQL
+  (12), the whole path from a poll to `match_hit` with a synthetic .xlsx (7), source bootstrap
+  (8), the authoriser with a simulated browser (6), sender allowlist (26).
+
+### Decisions
+
+- **`EmailIngested` carries references, not the email.** Spring Modulith stores the event until
+  its listener finishes; storing bodies or attachments there would break the rule that sheet
+  content is never persisted. The listener fetches the message through `MailReader`. A test
+  checks the stored event contains no content. This differs from the wording "load and publish":
+  the poller loads only headers, the full message is loaded when it is processed.
+- **Headers first.** The poller fetches headers (`format=metadata`) to filter and dedupe, so mail
+  from other senders is never downloaded.
+- **The sink lives in processing, and `processed_email` stays ingestion's.** Ingestion cannot
+  implement a processing port (that would be a module cycle), so the sink is in processing and
+  updates `processed_email` only through ingestion's `ProcessedEmails` API.
+- **A new source has no cursor; the first poll sets it to "now".** The brief asked for this at
+  bootstrap via `users.getProfile`; doing it in the first poll gives the same result ("ingestion
+  starts from now", up to one poll interval later) without making startup depend on Google.
+- **`AttachmentRef` is unchanged.** Attachments are tied to their Gmail attachment ids by
+  instance inside `LoadedMessage`, so no id had to be added to the public record.
+- **A part with a filename is an attachment**, inline or not; small ones arrive inside the
+  message and are read without a second request.
+- **Cursor per page:** mid-way it advances to the highest history id on the page, on the last
+  page to the mailbox's current id, always after the page's transaction has committed, and never
+  backwards.
+- **Failure handling in the listener:** the work runs in an inner transaction; on any failure it
+  rolls back and the email is marked FAILED with the exception class name only. A FAILED email
+  is not retried automatically.
+- **`republish-outstanding-events-on-restart` is on**, so an email recorded but not yet processed
+  when the app stops is processed at the next start. Reprocessing is idempotent
+  (`unique (user_id, email_id)`), which a test replays.
+- **Matches for a user or identifier deleted mid-flight are skipped**, not allowed to fail the
+  whole email.
+- **A message without a Message-ID** is recorded under `<gmail-ID@neobuddy.invalid>`, so it is
+  still deduped within its inbox.
+- **Drafts are skipped; spam and trash are not filtered.**
+- **Each source fails alone.** Found while checking the local start: one source row whose token
+  did not decrypt stopped the whole poll with a stack trace. Sources are now listed by id and
+  polled one by one; an unexpected failure is logged with its class only.
+- **The authoriser uses no extra library.** Google's `google-oauth-client-jetty` is not named in
+  ARCHITECTURE.md, so the loopback flow is about 200 lines on the JDK's HTTP server and client.
+- **Found by tests:** the attachment stream did not handle JSON escapes (`=` written as
+  `=`); and the authoriser closed its local server before a refused or denied callback had
+  been answered in the browser.
+
+### Not verified
+
+- **Real Gmail.** Everything Gmail-related ran against WireMock stubs written from the API
+  documentation. Real responses may differ in details; the first real run is the real test.
+- **`./gradlew authorizeSource` against Google.** It was run only without credentials (prints
+  the instruction and exits) and against a simulated Google in tests.
+- Testcontainers mode and CI remain unexercised (see T1).
+
+### Follow-ups
+
+- **`processed_email` is keyed by `rfc_message_id` alone.** If two colleges' inboxes receive the
+  same email, only the first college processes it. Fine for one college; before a second one the
+  key should include `college_id`, which is a schema change to agree first.
+- FAILED emails need the admin reprocess endpoint (T11); transient Gmail failures during
+  processing currently end as FAILED rather than being retried.
+- The From header is not proof of origin; checking Gmail's authentication results would harden
+  the sender filter.
+- `SourceAuthExpired` and `MatchesFound` have no listeners yet (T7, T10).
+- The Gmail fetch in the listener runs inside a database transaction and holds a connection for
+  its duration; acceptable at this volume.
+- The check runs left `verify-t6` colleges and sources in `neobuddy_test`; the next test run
+  wipes them.

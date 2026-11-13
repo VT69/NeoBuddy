@@ -15,6 +15,10 @@ excel-streaming-reader = "6.0.0"
 pdfbox = "3.0.8"
 jsoup = "1.24.1"
 commons-csv = "1.14.1"
+google-api-gmail = "v1-rev20261106-2.9.2"
+google-auth = "1.57.0"
+resilience4j = "2.4.0"
+wiremock = "3.13.2"
 
 [libraries]
 # BOMs
@@ -53,6 +57,14 @@ excel-streaming-reader = { module = "com.github.pjfanning:excel-streaming-reader
 pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "commons-csv" }
+
+# Ingestion (Gmail)
+google-api-gmail = { module = "com.google.apis:google-api-services-gmail", version.ref = "google-api-gmail" }
+google-auth-oauth2-http = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "google-auth" }
+resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry", version.ref = "resilience4j" }
+
+# Testing
+wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 
 # Testing (versions from spring-boot-bom)
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }

@@ -42,6 +42,11 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.commons.csv)
 
+    // Ingestion (Gmail)
+    implementation(libs.google.api.gmail)
+    implementation(libs.google.auth.oauth2.http)
+    implementation(libs.resilience4j.retry)
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 
@@ -50,7 +55,23 @@ dependencies {
     testImplementation(libs.spring.modulith.starter.test)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.junit.jupiter)
+    testImplementation(libs.wiremock.standalone)
     testRuntimeOnly(libs.junit.platform.launcher)
+}
+
+springBoot {
+    // There is a second main class (the SourceAuthorizer tool), so name the application's.
+    mainClass = "com.neobuddy.NeoBuddyApplication"
+}
+
+// One-off tool: authorises a source inbox with Google and prints its refresh token.
+// Usage: ./gradlew authorizeSource --console=plain
+tasks.register<JavaExec>("authorizeSource") {
+    group = "neobuddy"
+    description = "Runs the Google OAuth flow for a source inbox and prints the refresh token."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass = "com.neobuddy.ingestion.tools.SourceAuthorizer"
+    standardInput = System.`in`
 }
 
 tasks.withType<JavaCompile>().configureEach {

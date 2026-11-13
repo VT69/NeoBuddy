@@ -10,14 +10,12 @@ import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.stream.Stream;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** The contract in {@link CsvExtractor}'s Javadoc, as tests. All data is synthetic. */
-@Disabled("T3 - Vaibhav implements")
 class CsvExtractorTests {
 
   private static final String FILE = "shortlist.csv";
@@ -162,7 +160,7 @@ class CsvExtractorTests {
   }
 
   @Test
-  void fiftyThousandRows() {
+  void fiftyThousandRows() throws Exception {
     int rows = 50_000;
     StringBuilder csv = new StringBuilder("NeoID,Name,Reg No\r\n");
     for (int i = 1; i <= rows; i++) {
@@ -170,8 +168,10 @@ class CsvExtractorTests {
     }
     byte[] bytes = csv.toString().getBytes(UTF_8);
 
-    List<TextChunk> chunks =
-        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> extract(bytes));
+    // The first call in a fresh JVM pays for class loading and JIT warm-up of the parser, which
+    // says nothing about the extractor. Warm up once, then hold the real run to one second.
+    extract(bytes);
+    List<TextChunk> chunks = assertTimeoutPreemptively(Duration.ofSeconds(1), () -> extract(bytes));
 
     assertThat(chunks).hasSize(rows + 1);
     assertThat(chunks.get(0)).isEqualTo(new TextChunk(FILE, "R1", "NeoID | Name | Reg No"));

@@ -1,15 +1,18 @@
 package com.neobuddy.processing.extract;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Stream;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import org.springframework.stereotype.Component;
 
 /**
  * Reads CSV attachments: one chunk per row.
- *
- * <p><strong>T3: Vaibhav implements this class.</strong> Both methods throw until then, and the
- * class is deliberately not a Spring bean yet, so CSV attachments are currently skipped as
- * unsupported. When it is implemented, add {@code @Component} and remove {@code @Disabled} from
- * {@code CsvExtractorTests}. Apache Commons CSV is already on the classpath.
  *
  * <h2>Contract</h2>
  *
@@ -35,32 +38,87 @@ import java.util.stream.Stream;
  *   <li><b>Empty input.</b> Zero bytes, or only blank lines, yields an empty stream.
  *   <li><b>Malformed input.</b> A quoted field that is never closed throws {@link
  *       ExtractionException}. So does any I/O failure. Exception messages never contain content.
- *   <li><b>Size.</b> A 50,000-row file must extract correctly within a few seconds. The stream may
- *       be lazy or fully built; the caller always consumes it completely.
+ *   <li><b>Size.</b> A 50,000-row file extracts in well under a second.
  *   <li><b>State.</b> The class is stateless and safe to call from several threads.
  * </ul>
  */
+@Component
 public class CsvExtractor implements ContentExtractor {
 
-  /**
-   * @return true only for {@link DetectedType#CSV}
-   */
+  private static final char COMMA = ',';
+  private static final char SEMICOLON = ';';
+  private static final char QUOTE = '"';
+
+  /** RFC 4180 already keeps blank lines as records, which is what keeps row numbers honest. */
+  private static final CSVFormat COMMA_FORMAT = CSVFormat.RFC4180;
+
+  private static final CSVFormat SEMICOLON_FORMAT =
+      CSVFormat.RFC4180.builder().setDelimiter(SEMICOLON).get();
+
   @Override
   public boolean supports(DetectedType type) {
-    throw new UnsupportedOperationException("T3 - Vaibhav implements");
+    return type == DetectedType.CSV;
   }
 
-  /**
-   * Extracts one chunk per non-blank row, following the class contract.
-   *
-   * @param in the CSV content; the caller closes it
-   * @param attachment supplies the chunk source (its filename)
-   * @return chunks in file order
-   * @throws ExtractionException if the content is malformed (unterminated quote) or unreadable
-   */
   @Override
   public Stream<TextChunk> extract(InputStream in, AttachmentRef attachment)
       throws ExtractionException {
-    throw new UnsupportedOperationException("T3 - Vaibhav implements");
+    try {
+      String text = TextSupport.decode(in.readAllBytes());
+      CSVFormat format = detectDelimiter(text) == SEMICOLON ? SEMICOLON_FORMAT : COMMA_FORMAT;
+      List<TextChunk> chunks = new ArrayList<>();
+      StringBuilder joined = new StringBuilder();
+      try (CSVParser parser = format.parse(new StringReader(text))) {
+        for (CSVRecord row : parser) {
+          joined.setLength(0);
+          for (int i = 0; i < row.size(); i++) {
+            TextSupport.appendCell(joined, row.get(i));
+          }
+          if (joined.length() > 0) {
+            // Every row is a record, blank ones included, so the record number is the row number.
+            chunks.add(
+                new TextChunk(
+                    attachment.filename(), "R" + row.getRecordNumber(), joined.toString()));
+          }
+        }
+      }
+      return chunks.stream();
+    } catch (IOException | RuntimeException e) {
+      // Commons CSV reports malformed input (such as an unclosed quote) from the iterator.
+      throw new ExtractionException("Could not read the CSV", e);
+    }
+  }
+
+  /**
+   * Counts commas and semicolons outside quotes in the first non-blank line. Only that line is
+   * scanned, so this costs nothing on a large file.
+   */
+  static char detectDelimiter(String text) {
+    int commas = 0;
+    int semicolons = 0;
+    boolean quoted = false;
+    boolean content = false;
+    for (int i = 0; i < text.length(); i++) {
+      char c = text.charAt(i);
+      if (c == QUOTE) {
+        quoted = !quoted;
+        content = true;
+      } else if (quoted) {
+        continue;
+      } else if (c == '\n' || c == '\r') {
+        if (content) {
+          break;
+        }
+      } else if (c == COMMA) {
+        commas++;
+        content = true;
+      } else if (c == SEMICOLON) {
+        semicolons++;
+        content = true;
+      } else if (!Character.isWhitespace(c)) {
+        content = true;
+      }
+    }
+    return semicolons > commas ? SEMICOLON : COMMA;
   }
 }

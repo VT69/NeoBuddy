@@ -206,3 +206,51 @@ Branch `t2-extraction`, cut from `t1-scaffold`.
   chunks), legacy `.doc`, text encodings other than UTF-8/UTF-16-with-BOM, a cap on the number of
   chunks per file, text boxes and headers in .docx.
 - Testcontainers mode and CI are still unexercised (see T1 follow-ups).
+
+## T3 · CsvExtractor + Tokenizer (2026-11-13)
+
+Status: **done.** `./gradlew build --rerun-tasks` is green against the local `neobuddy_test`
+database: 223 tests, 223 passed, 0 failed, 0 skipped. Branch `t3-csv-tokenizer`, cut from
+`t2-extraction`. Implemented by Claude Code at Vaibhav's request (the playbook had this as his).
+
+### What was built
+
+- `CsvExtractor` (now a `@Component`): Apache Commons CSV with the RFC 4180 format; comma or
+  semicolon chosen from the first non-blank line, counting only outside quotes; BOM dropped by
+  `TextSupport.decode`; blank rows emit nothing but keep their row number (`R12`).
+- `Tokenizer` (now a `@Component`): a precompiled, possessive email pattern; a precompiled split
+  on non-alphanumerics for words of 4+; and a regex-free single pass for the per-cell rule
+  (spaces and hyphens removed, 4 to 20 ASCII alphanumerics). Returns a `Set<String>`.
+- `@Disabled` removed from `CsvExtractorTests` and `TokenizerTests`. Every test written in T2
+  passed unchanged against the implementation, except the 50,000-row test (see below).
+- Interim tests updated: the registry now extracts CSV (`csvAttachmentsAreExtractedRowByRow`,
+  `aMalformedCsvFailsAloneAndLogsNoContent`), and the wiring test expects six extractors.
+- `TextSupport.clean` / `joinCells` no longer compile a regular expression per cell
+  (`String.replaceAll` did); they are one pass over the characters. This speeds up every
+  tabular extractor, not only CSV.
+
+### Performance of the 50,000-row file (this machine, about 1.9 MB)
+
+- Warm: roughly 0.1 to 0.2 s, about the cost of Commons CSV parsing alone.
+- First call in a fresh JVM: 0.55 to 0.9 s. Commons CSV parsing alone is 0.2 to 0.35 s cold, so
+  this is JIT warm-up, not extractor code.
+- Before the `TextSupport` change the first call took about 1.0 s and warm calls about 0.2 s.
+- The test therefore runs one untimed warm-up extraction and holds the second to 1 second. This
+  is the only T2-written test whose body changed (it had a 10 s limit and no warm-up).
+
+### Decisions
+
+- **Row number = Commons CSV record number.** RFC 4180 format keeps blank lines as records, so
+  no separate line counting is needed and a quoted multi-line field is still one row.
+- **Delimiter detection scans only the first non-blank line**, by hand, so it costs nothing on a
+  large file and ignores delimiters inside quotes.
+- **Malformed CSV (unclosed quote) fails the file** with "Could not read the CSV"; the Commons
+  CSV message is kept only as the exception cause and is never logged.
+- **Cell rule strips literal spaces and hyphens only**, as the contract says; a tab inside a
+  cell means no cell token (the word pass still tokenizes it).
+
+### Follow-ups
+
+- T4 wires `Tokenizer` into `Matcher` and calls `ExtractorRegistry`.
+- If cold-start latency ever matters, the options are a warm-up at startup or a hand-written
+  CSV reader; neither is needed for a poller that runs every 2 minutes.

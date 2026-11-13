@@ -28,7 +28,7 @@ class ExtractionWiringTests {
   }
 
   @Test
-  void everyExtractorExceptTheT3CsvStubIsRegistered() {
+  void everyExtractorIsRegistered() {
     assertThat(extractors)
         .extracting(extractor -> extractor.getClass().getSimpleName())
         .containsExactlyInAnyOrder(
@@ -36,7 +36,8 @@ class ExtractionWiringTests {
             "PdfExtractor",
             "DocxExtractor",
             "HtmlBodyExtractor",
-            "PlainTextExtractor");
+            "PlainTextExtractor",
+            "CsvExtractor");
   }
 
   @Test

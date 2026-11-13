@@ -6,3 +6,10 @@ neobuddy:
   ingestion:
     # Tests poll by hand; a background poller would race with them on the shared database.
     enabled: false
+  delivery:
+    # Tests dispatch by hand; a background dispatcher would send other tests' alerts.
+    enabled: false
+  channels:
+    email:
+      # Nothing leaves the machine; tests that need SES replace its client with a mock.
+      provider: log

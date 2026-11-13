@@ -58,6 +58,39 @@ neobuddy:
       # For HTTP 429 and 5xx: tries in total, and the wait before the second (doubles after).
       max-attempts: 4
       initial-backoff: 1s
+  delivery:
+    # The outbox dispatcher. false switches the scheduled run off.
+    enabled: true
+    poll-interval: PT10S
+    batch-size: 50
+    # Tries per alert and channel, the first included; waits of 1, 2, 4, 8, 16 minutes between.
+    max-attempts: 6
+    base-backoff: PT1M
+    # A claimed alert whose instance died becomes due again after this.
+    claim-timeout: PT5M
+  channels:
+    ntfy:
+      base-url: ${NEOBUDDY_NTFY_BASE_URL:https://ntfy.sh}
+      rate-limit:
+        limit-for-period: 2
+        refresh-period: PT1S
+        timeout: PT10S
+    email:
+      # ses = Amazon SES; log = send nothing, only log (the local profile's default).
+      provider: ${NEOBUDDY_EMAIL_PROVIDER:ses}
+    ses:
+      # A sender verified in SES, e.g. "NeoBuddy <alerts@your-domain>". Required with provider ses.
+      from: ${NEOBUDDY_SES_FROM:}
+      region: ${NEOBUDDY_SES_REGION:ap-south-1}
+      # The SES sandbox allows one email per second; raise it with production access.
+      rate-limit:
+        limit-for-period: 1
+        refresh-period: PT1S
+        timeout: PT10S
+  verification:
+    # Emailed one-time codes.
+    email-otp-validity: PT10M
+    email-otp-max-attempts: 5
   extraction:
     # Attachment safety limits (docs/ARCHITECTURE.md, Non-functional design).
     max-attachment-size: 25MB

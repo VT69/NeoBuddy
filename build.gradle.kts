@@ -47,6 +47,13 @@ dependencies {
     implementation(libs.google.auth.oauth2.http)
     implementation(libs.resilience4j.retry)
 
+    // Notification (ntfy, SES)
+    implementation(libs.resilience4j.ratelimiter)
+    implementation(libs.aws.sesv2) {
+        // Only the synchronous client is used.
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 

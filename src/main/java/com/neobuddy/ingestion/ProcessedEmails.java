@@ -1,12 +1,13 @@
 package com.neobuddy.ingestion;
 
 import com.neobuddy.ingestion.source.ProcessedEmailStore;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Lets processing record what became of an ingested email. The {@code processed_email} table
- * belongs to ingestion; this is the only way another module changes it.
+ * belongs to ingestion; this is the only way another module reads or changes it.
  */
 @Service
 public class ProcessedEmails {
@@ -21,6 +22,12 @@ public class ProcessedEmails {
   @Transactional(readOnly = true)
   public boolean exists(String rfcMessageId) {
     return store.exists(rfcMessageId);
+  }
+
+  /** The email's headers and classification, for building an alert about it. */
+  @Transactional(readOnly = true)
+  public Optional<EmailSummary> find(String rfcMessageId) {
+    return store.find(rfcMessageId);
   }
 
   /**

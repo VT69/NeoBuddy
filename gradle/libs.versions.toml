@@ -18,6 +18,7 @@ commons-csv = "1.14.1"
 google-api-gmail = "v1-rev20261106-2.9.2"
 google-auth = "1.57.0"
 resilience4j = "2.4.0"
+aws-sdk = "2.59.0"
 wiremock = "3.13.2"
 
 [libraries]
@@ -62,6 +63,10 @@ commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "common
 google-api-gmail = { module = "com.google.apis:google-api-services-gmail", version.ref = "google-api-gmail" }
 google-auth-oauth2-http = { module = "com.google.auth:google-auth-library-oauth2-http", version.ref = "google-auth" }
 resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry", version.ref = "resilience4j" }
+
+# Notification (ntfy rate limit, email through Amazon SES)
+resilience4j-ratelimiter = { module = "io.github.resilience4j:resilience4j-ratelimiter", version.ref = "resilience4j" }
+aws-sesv2 = { module = "software.amazon.awssdk:sesv2", version.ref = "aws-sdk" }
 
 # Testing
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }

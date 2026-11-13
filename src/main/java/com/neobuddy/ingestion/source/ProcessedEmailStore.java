@@ -1,0 +1,83 @@
+package com.neobuddy.ingestion.source;
+
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+/**
+ * The {@code processed_email} table. Plain SQL, because the one operation that matters here is
+ * "insert unless this Message-ID is already known", which is the cross-inbox dedupe.
+ */
+@Repository
+public class ProcessedEmailStore {
+
+  private static final int MAX_ERROR_LENGTH = 200;
+
+  private final JdbcTemplate jdbc;
+
+  ProcessedEmailStore(JdbcTemplate jdbc) {
+    this.jdbc = jdbc;
+  }
+
+  /**
+   * Records the email unless its Message-ID is already there.
+   *
+   * @return true if this call recorded it; false if another inbox, or an earlier poll, already had
+   */
+  public boolean insertIfAbsent(
+      String rfcMessageId,
+      UUID collegeId,
+      UUID sourceId,
+      String gmailId,
+      String sender,
+      String subject,
+      Instant receivedAt) {
+    int inserted =
+        jdbc.update(
+            "insert into processed_email"
+                + " (rfc_message_id, college_id, source_id, gmail_id, sender, subject, received_at,"
+                + " status) values (?, ?, ?, ?, ?, ?, ?, 'RECEIVED')"
+                + " on conflict (rfc_message_id) do nothing",
+            rfcMessageId,
+            collegeId,
+            sourceId,
+            gmailId,
+            sender,
+            subject,
+            OffsetDateTime.ofInstant(receivedAt, ZoneOffset.UTC));
+    return inserted == 1;
+  }
+
+  public boolean exists(String rfcMessageId) {
+    Integer count =
+        jdbc.queryForObject(
+            "select count(*) from processed_email where rfc_message_id = ?",
+            Integer.class,
+            rfcMessageId);
+    return count != null && count > 0;
+  }
+
+  public void markProcessed(String rfcMessageId, String eventType, String company) {
+    jdbc.update(
+        "update processed_email set status = 'PROCESSED', event_type = ?, company = ?,"
+            + " error = null, processed_at = now() where rfc_message_id = ?",
+        eventType,
+        company,
+        rfcMessageId);
+  }
+
+  public void markFailed(String rfcMessageId, String error) {
+    String bounded =
+        error == null || error.length() <= MAX_ERROR_LENGTH
+            ? error
+            : error.substring(0, MAX_ERROR_LENGTH);
+    jdbc.update(
+        "update processed_email set status = 'FAILED', error = ?, processed_at = now()"
+            + " where rfc_message_id = ?",
+        bounded,
+        rfcMessageId);
+  }
+}

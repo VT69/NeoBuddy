@@ -40,6 +40,24 @@ neobuddy:
       reg-no: ${NEOBUDDY_BOOTSTRAP_ADMIN_REG_NO:}
       ntfy-topic: ${NEOBUDDY_BOOTSTRAP_ADMIN_NTFY_TOPIC:}
       personal-email: ${NEOBUDDY_BOOTSTRAP_ADMIN_PERSONAL_EMAIL:}
+    source:
+      # The first source inbox. Get the refresh token with: ./gradlew authorizeSource
+      email: ${NEOBUDDY_BOOTSTRAP_SOURCE_EMAIL:}
+      refresh-token: ${NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN:}
+  ingestion:
+    # false switches the scheduled poller off.
+    enabled: true
+    poll-interval: PT2M
+    # When a Gmail history cursor is too old, list this many days of mail and rely on dedupe.
+    fallback-window-days: 7
+  gmail:
+    # OAuth client (type "Desktop app") of the Google Cloud project with the Gmail API enabled.
+    client-id: ${NEOBUDDY_GMAIL_CLIENT_ID:}
+    client-secret: ${NEOBUDDY_GMAIL_CLIENT_SECRET:}
+    retry:
+      # For HTTP 429 and 5xx: tries in total, and the wait before the second (doubles after).
+      max-attempts: 4
+      initial-backoff: 1s
   extraction:
     # Attachment safety limits (docs/ARCHITECTURE.md, Non-functional design).
     max-attachment-size: 25MB
@@ -117,3 +135,9 @@ management:
     health:
       probes:
         enabled: true
+
+spring.modulith:
+  events:
+    # An event whose listener had not finished when the application stopped is delivered again
+    # at the next start, so an ingested email is never left unprocessed.
+    republish-outstanding-events-on-restart: true

@@ -70,6 +70,9 @@ changed values update in place. Leave `NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG` unset to
 | `NEOBUDDY_BOOTSTRAP_ADMIN_NTFY_TOPIC` | Optional ntfy topic, registered as already verified |
 | `NEOBUDDY_BOOTSTRAP_ADMIN_PERSONAL_EMAIL` | Optional personal email, registered as already verified |
 
+| `NEOBUDDY_BOOTSTRAP_SOURCE_EMAIL` | The inbox placement mail is read from (see below) |
+| `NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN` | Its refresh token, from `./gradlew authorizeSource` |
+
 Put real values only in your shell or an untracked `.env` file, never in a tracked file. The
 startup log says `Bootstrap: college '<slug>' created, admin created` the first time and
 `already present` afterwards; it never prints the admin's details.
@@ -82,6 +85,52 @@ If port 8080 is already in use (IIS on Windows, for example), pick another with 
 
 ```bash
 PORT=8081 ./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+## Connect a source inbox (Gmail)
+
+NeoBuddy reads placement mail from an inbox with Google's read-only Gmail scope. It needs the
+OAuth client of a Google Cloud project that has the Gmail API enabled (client type "Desktop
+app"):
+
+```bash
+export NEOBUDDY_GMAIL_CLIENT_ID=<client id>
+export NEOBUDDY_GMAIL_CLIENT_SECRET=<client secret>
+```
+
+**1. Authorise the inbox once.** This prints a Google address; open it in a browser signed in to
+the inbox and approve. The refresh token is printed once in the terminal and nowhere else:
+
+```bash
+./gradlew authorizeSource --console=plain
+```
+
+Treat the refresh token like a password. If Google returns none, remove NeoBuddy's access at
+<https://myaccount.google.com/permissions> and run it again.
+
+**2. Start NeoBuddy with the source configured,** next to the college variables above:
+
+```bash
+export NEOBUDDY_BOOTSTRAP_SOURCE_EMAIL=<the inbox address>
+export NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN=<the refresh token>
+./gradlew bootRun --args='--spring.profiles.active=local'
+```
+
+The token is stored encrypted. The first poll only records the inbox's current position, so mail
+that was already there is never read; from then on every new email from an address on the
+college's sender allowlist is processed, once, about every 2 minutes
+(`neobuddy.ingestion.poll-interval`). To reconnect an inbox whose access was revoked, authorise
+it again and restart with the new token.
+
+**Check it end to end:** add an address you can send from to
+`NEOBUDDY_BOOTSTRAP_COLLEGE_SENDER_ALLOWLIST`, restart, wait for the first poll, then send the
+inbox an email from that address with a small spreadsheet containing your NeoID. Within one poll
+there should be a row for you:
+
+```sql
+select e.subject, e.status, e.event_type, m.context_snippet
+from processed_email e left join match_hit m on m.email_id = e.rfc_message_id
+order by e.received_at desc limit 5;
 ```
 
 ## Test

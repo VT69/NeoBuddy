@@ -128,3 +128,81 @@ status line at the top of this section is superseded: the external-database path
   the first CI run on GitHub is its first real test.
 - Local PostgreSQL is 18 while production and CI target 16; nothing in the schema is
   version-specific, but CI on 16 stays the reference.
+
+## T2 · Extraction engine (2026-11-13)
+
+Status: **done.** `./gradlew build --rerun-tasks` is green against the local `neobuddy_test`
+database: 202 tests, 165 passed, 0 failed, 37 skipped (the T3 tests, disabled on purpose).
+Branch `t2-extraction`, cut from `t1-scaffold`.
+
+### What was built (`com.neobuddy.processing.extract`)
+
+- Types: `ContentExtractor`, `TextChunk(source, location, text)`, `DetectedType`,
+  `AttachmentRef(filename, declaredMimeType, sizeBytes)`, `ExtractionException`,
+  `ExtractionResult` (EXTRACTED / SKIPPED_TOO_LARGE / SKIPPED_UNSUPPORTED / FAILED).
+- `TypeDetector`: Tika core for magic bytes; filename and declared MIME type are hints only.
+  Office containers are told apart by content (ZIP central directory entry names, OLE2 workbook
+  stream), so an .xlsx under any name is XLSX and a plain zip named .xlsx is UNKNOWN.
+- `ExtractorRegistry`: entry point. Size cap, detection, extractor choice, WARN on skip or failure
+  with the sanitised filename only. `extractBody(text, html)` prefers the HTML part.
+- `SafeExtractionRunner`: one worker thread per file, bounded by a semaphore (default 2), 30 s
+  timeout, interrupts on timeout, turns any exception or error into `ExtractionException`.
+- Extractors: `ExcelExtractor` (xlsx + xls, streaming reader above the threshold, all sheets,
+  `Sheet1!R42`), `PdfExtractor` (`p3:L17`), `DocxExtractor` (`P4`, `T2!R5`), `HtmlBodyExtractor`
+  (`T2!R5` rows, `B7` blocks), `PlainTextExtractor` (`L12`).
+- `ExtractionProperties` (`neobuddy.extraction.*`): max-attachment-size 25MB,
+  excel-streaming-threshold 5MB, timeout 30s, max-concurrent 2.
+- Dependencies, all named in ARCHITECTURE.md: Tika core 4.2.0, POI 6.0.0,
+  excel-streaming-reader 6.0.0, PDFBox 3.0.8, jsoup 1.24.1, Commons CSV 1.14.1 (for T3).
+- Fixtures: `SyntheticFiles` builds every test file in memory (2-sheet xlsx with numeric reg-no,
+  xls, PDF table, docx table, HTML email, plus empty, truncated, zip-bomb and noise variants).
+  All names and IDs are invented; no fixture file is checked in.
+
+### T3 hand-off (for Vaibhav)
+
+- `processing.extract.CsvExtractor` and `processing.match.Tokenizer`: both methods throw
+  `UnsupportedOperationException`; the full contract is in each class Javadoc.
+- `CsvExtractorTests` (16) and `TokenizerTests` (21) are complete and `@Disabled("T3 - Vaibhav
+  implements")`.
+- To finish T3: implement the methods, add `@Component` to `CsvExtractor` (it is deliberately not
+  a bean yet, so CSV attachments are currently skipped as unsupported), remove both `@Disabled`,
+  and update two tests that pin the interim state: `ExtractorRegistryTests
+  .csvIsSkippedUntilT3RegistersItsExtractor` and `ExtractionWiringTests
+  .everyExtractorExceptTheT3CsvStubIsRegistered`.
+- **The T3 tests have never been executed**, because there is nothing to run them against. They
+  were reviewed by hand against the contract. If one looks wrong, suspect the test too.
+- Contract choices worth a look before coding: "alphanumeric" is ASCII only; the three tokenizer
+  passes are independent and unioned (so words inside an email address are also tokens); CSV row
+  numbers count blank lines; blank cells are dropped from the joined text.
+
+### Decisions
+
+- **Files are read fully into memory (at most the 25 MB cap + 1 byte)** before detection. This
+  enforces the real size, lets detection and extraction share the bytes, and keeps the timed task
+  free of network I/O.
+- **Long numbers are written out in full.** POI renders a 12-digit General cell as Excel does,
+  `2.12346E+11`, which would destroy a registration number; numeric cells that come out in
+  scientific notation are replaced by the plain digits. Found by a test.
+- **Binary formats can never be chosen by name.** Random bytes named `.xlsx` were first detected
+  as XLSX from the name; now the name and declared type may only choose between plain text, CSV
+  and HTML. Found by a test.
+- **HTML layout tables are walked into, not emitted.** A `<tr>` that contains another table is
+  layout; emitting it would create one chunk holding every student in the email, and that chunk
+  could end up as someone else's match snippet.
+- **Row text drops blank cells**, for every tabular format, so chunks are compact and consistent.
+- **Zero-byte attachment = EXTRACTED with no chunks** at the registry; the binary extractors
+  themselves reject zero bytes.
+- **`TextChunk.toString()` omits the text**, so a chunk can never leak into a log by accident.
+- **Timeouts cannot kill a thread.** A parser that ignores the interrupt keeps its slot until it
+  returns; other callers give up after the same timeout instead of queueing forever.
+- **Formulas are never evaluated**; the last saved value is used. `ZipSecureFile` is untouched,
+  and a test proves a crafted zip bomb is rejected.
+
+### Follow-ups
+
+- T4 must call `ExtractorRegistry` and reconcile `AttachmentRef` here with the one sketched for
+  `RawEmail` in ARCHITECTURE.md (ingestion), probably by moving it to a shared place.
+- Not handled yet: password-protected files (reported as FAILED or skipped), scanned PDFs (no
+  chunks), legacy `.doc`, text encodings other than UTF-8/UTF-16-with-BOM, a cap on the number of
+  chunks per file, text boxes and headers in .docx.
+- Testcontainers mode and CI are still unexercised (see T1 follow-ups).

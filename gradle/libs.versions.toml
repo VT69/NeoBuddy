@@ -9,6 +9,12 @@ spring-modulith = "2.1.2"
 shedlock = "7.11.0"
 spotless = "8.11.0"
 google-java-format = "2.0.0"
+tika = "4.2.0"
+poi = "6.0.0"
+excel-streaming-reader = "6.0.0"
+pdfbox = "3.0.8"
+jsoup = "1.24.1"
+commons-csv = "1.14.1"
 
 [libraries]
 # BOMs
@@ -39,6 +45,14 @@ spring-modulith-starter-test = { module = "org.springframework.modulith:spring-m
 # ShedLock
 shedlock-spring = { module = "net.javacrumbs.shedlock:shedlock-spring", version.ref = "shedlock" }
 shedlock-provider-jdbc-template = { module = "net.javacrumbs.shedlock:shedlock-provider-jdbc-template", version.ref = "shedlock" }
+
+# Extraction (processing module)
+tika-core = { module = "org.apache.tika:tika-core", version.ref = "tika" }
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poi" }
+excel-streaming-reader = { module = "com.github.pjfanning:excel-streaming-reader", version.ref = "excel-streaming-reader" }
+pdfbox = { module = "org.apache.pdfbox:pdfbox", version.ref = "pdfbox" }
+jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
+commons-csv = { module = "org.apache.commons:commons-csv", version.ref = "commons-csv" }
 
 # Testing (versions from spring-boot-bom)
 testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql" }

@@ -346,3 +346,79 @@ An 11 s read is inside the 30 s extraction timeout but not by a wide margin on s
 - A chunk that names several students (a prose line, a PDF line) becomes the snippet for each of
   them, so a snippet can contain another student's name or id. Inherent to line-based chunks.
 - Classifier keywords and company patterns are untested against real placement mail.
+
+## T5 · Subscriber module, field encryption and v1 bootstrap (2026-11-13)
+
+Status: **done.** `./gradlew build` is green against the local `neobuddy_test` database: 400
+tests, 0 failed, 0 skipped, including `ModularityTests`. Started locally twice with bootstrap
+variables (fake values, against `neobuddy_test`): the first start logged "college created, admin
+created", the second "already present"; without `NEOBUDDY_ENCRYPTION_KEY` the app refuses to
+start. Branch `t5-subscriber`, cut from `t4-matching`. No schema change.
+
+T6 (Gmail ingestion) was sent in the same message and has **not** been started, per CLAUDE.md.
+
+### What was built
+
+- `shared.crypto` (named interface `crypto`): `FieldEncryptor` (AES-256-GCM, fresh 96-bit IV per
+  value, layout `[key id][IV][ciphertext+tag]`, key id bound as associated data, key from
+  `NEOBUDDY_ENCRYPTION_KEY`), `EncryptedStringConverter` (JPA), `EncryptionProperties`.
+- `shared.time`: one `Clock` bean.
+- `shared.college`: `College.updateSettings`, `College.acceptsSubscribers`,
+  `CollegeRepository.findByAllowedEmailDomain`.
+- Subscriber public API (`com.neobuddy.subscriber`): `SubscriberService`, `SubscriberView`,
+  `OidcClaims`, `IdentifierType`, `ChannelType`, `UserRole`, `UserStatus`, `ChannelAddress`,
+  `NeoId`, `IdentifierNormalizer`, and the exceptions.
+- `subscriber.persistence` (internal): `AppUser`, `Identifier`, `Channel`, `LinkCode`, their
+  repositories, and `SubscriberIdentifierSource`, the implementation of processing's
+  `IdentifierSource` port (active users only).
+- `subscriber.bootstrap` (internal): `BootstrapProperties` (`neobuddy.bootstrap.*`), `Bootstrap`
+  (the upsert) and `BootstrapRunner` (an `ApplicationRunner`, highest precedence).
+- Tests: encryption (every flipped bit, truncation, wrong key, unknown key id, bad keys),
+  normaliser and validation, the service against PostgreSQL (duplicate NeoID in one college
+  rejected, allowed in another, cascade on delete to identifiers, channels, link codes, match_hit
+  and delivery, address encrypted at rest), bootstrap (twice changes nothing, down to the
+  encrypted bytes), and the T4 wiring test now runs through the real subscriber module.
+
+### Decisions
+
+- **No schema change.** `app_user.google_sub` is NOT NULL, but the bootstrap admin has never
+  signed in, so the account is created with the placeholder `pending:<email>`. The first Google
+  sign-in with that verified email takes the account over. Any other second Google account
+  claiming a registered email is rejected.
+- **Emails are stored lower-case.** `citext` compares case-insensitively against literals but
+  not reliably against bound parameters, so lookups never depend on it.
+- **One identifier per type per user.** Adding the same value again is a no-op; a different
+  value of the same type is refused until the old one is removed. This limits squatting on other
+  students' identifiers, which the design cannot otherwise prevent.
+- **Registration number rule: 4 to 20 letters and digits after normalisation**, because that is
+  all the tokenizer can find. `21/BCE/1234` is rejected at entry rather than silently never
+  matching. NeoIDs must match the college pattern and the same rule.
+- **College email = exact domain match** on the part after the last `@`; `evilcollege.edu` and
+  `mail.college.edu` do not pass for `college.edu`.
+- **Sign-in rule:** email verified, its domain on an ACTIVE or PILOT college, and if Google sends
+  an `hd` claim it must be one of that college's domains. A missing `hd` is accepted.
+- **`registerFromOidc` records consent as of the call**, so the T9 sign-in page must show the
+  consent notice before calling it.
+- **A paused user is left out of the index**, which stops matching as well as alerts; they will
+  have no match history for the paused period.
+- **A changed channel address is unverified again**; repeating the same address changes nothing
+  and does not re-encrypt.
+- **Bootstrap fails the startup** on a configuration it cannot apply (admin email off the college
+  domains, NeoID held by someone else), and rolls the whole run back. Optional values that are
+  removed from the configuration later are left in the database, not deleted.
+- **No fallback encryption key in the `local` profile.** A known key in the repo would end up
+  encrypting real data the first time someone points `local` at it. Tests use an obviously fake
+  key in `src/test/resources/application-test.yml`.
+- **Key rotation is prepared, not built:** the leading key-id byte is checked on decrypt, but
+  there is one key and no re-encryption tool yet.
+
+### Follow-ups
+
+- T6: `mail_source.refresh_token_enc` can use `EncryptedStringConverter`; the source bootstrap
+  should run after `BootstrapRunner` and look the college up by slug.
+- T7 needs a way to read verified, enabled channel addresses for delivery; `SubscriberView`
+  deliberately leaves addresses out.
+- `LinkCode` has an entity and repository only; issuing, hashing and checking codes belongs to
+  the channel-verification tasks.
+- Back up `NEOBUDDY_ENCRYPTION_KEY` separately from the database; a restore needs both.
+- The verification run left a `verify-college` row in `neobuddy_test`; the next test run wipes it.

@@ -63,6 +63,25 @@ public class College {
     this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
   }
 
+  /**
+   * Replaces the settings an admin can edit. Identity (id, slug), status and creation time stay.
+   */
+  public void updateSettings(
+      String name,
+      List<String> allowedEmailDomains,
+      List<String> senderAllowlist,
+      String neoIdPattern) {
+    this.name = Objects.requireNonNull(name, "name");
+    this.allowedEmailDomains = List.copyOf(allowedEmailDomains);
+    this.senderAllowlist = List.copyOf(senderAllowlist);
+    this.neoIdPattern = Objects.requireNonNull(neoIdPattern, "neoIdPattern");
+  }
+
+  /** True while students of this college may sign up and receive alerts. */
+  public boolean acceptsSubscribers() {
+    return status == CollegeStatus.ACTIVE || status == CollegeStatus.PILOT;
+  }
+
   public UUID getId() {
     return id;
   }

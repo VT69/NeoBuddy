@@ -254,3 +254,95 @@ database: 223 tests, 223 passed, 0 failed, 0 skipped. Branch `t3-csv-tokenizer`,
 - T4 wires `Tokenizer` into `Matcher` and calls `ExtractorRegistry`.
 - If cold-start latency ever matters, the options are a warm-up at startup or a hand-written
   CSV reader; neither is needed for a poller that runs every 2 minutes.
+
+## T4 · Classification and matching (2026-11-13)
+
+Status: **done, with one caveat on performance.** `./gradlew build --rerun-tasks` is green against
+the local `neobuddy_test` database: 322 tests, 0 failed, 0 skipped, including the 8 golden tests,
+the performance tests and `ModularityTests`. Branch `t4-matching`, cut from `t3-csv-tokenizer`.
+
+Caveat: the performance tests bound matching and a CSV end-to-end run, **not** a 50,000-row
+.xlsx end to end. That took 16.5 s on this machine on a cold JVM, almost all of it Apache POI
+reading the workbook. See "Performance" below.
+
+### What was built
+
+- `ingestion.RawEmail` (new) and `ingestion.AttachmentRef` (moved from `processing.extract`).
+- Processing public API (`com.neobuddy.processing`): `ProcessingService`, `ProcessingResult`
+  (+ `ExtractionSummary`), `EventType`, `Classification`, `MatchHit`, `MatchesFound`,
+  `IdentifiersChanged`, and the ports `IdentifierSource`, `ProcessingResultSink`,
+  `AttachmentSource`.
+- `processing.classify`: `EmailClassifier`, `KeywordEmailClassifier`, `CompanyNameResolver`,
+  `ClassifierProperties` (`neobuddy.classifier.rules`, `.known-recruiters`,
+  `.colleges.<slug>` overrides). Starting keyword lists are in `application.yml`.
+- `processing.match`: `IdentifierIndex`, `InMemoryIdentifierIndex` (college -> token -> refs in
+  an `AtomicReference`, rebuilt on `IdentifiersChanged` after commit and every
+  `neobuddy.matching.index-refresh`, default 5 min), `IdentifierRef`, `Matcher`.
+- `ProcessingService.process(college, email, attachments)`: subject + body + attachment chunks ->
+  classify -> match -> `ProcessingResultSink.save` (if a sink exists) -> publish `MatchesFound`
+  (only when there are hits).
+- Tests: golden scenarios a) to h) in `ProcessingServiceGoldenTests` run the real extractors, the
+  rules shipped in `application.yml`, the real tokenizer, index and matcher, with fakes only at
+  the ports. Plus unit tests for classifier, resolver, index, matcher and service, a Spring wiring
+  test, and the performance tests.
+
+### Decisions
+
+- **`RawEmail` and `AttachmentRef` live in ingestion's base package.** That package is the
+  module's public API; ingestion produces these and processing consumes them, so the dependency
+  runs processing -> ingestion, the same direction as the `EmailIngested` event will. Leaving
+  `AttachmentRef` in processing would have made `RawEmail` point back and created a cycle.
+- **`IdentifiersChanged` lives in processing, not subscriber.** Subscriber must depend on
+  processing to implement `IdentifierSource`; defining the event in subscriber would make the
+  two modules depend on each other.
+- **Two interfaces differ from the sketch in ARCHITECTURE.md**, because of per-college scoping:
+  `EmailClassifier.classify(collegeSlug, email)` and `IdentifierIndex.lookup(collegeId, token)`.
+- **Classification order: offer in subject, shortlist in subject, offer in body, shortlist in
+  body, else OTHER.** OFFER outranks SHORTLIST at the same level, and the subject outranks the
+  body, because shortlist mails often mention the offer on the table in their body.
+- **Keywords match whole words only** ("offer" does not match "offering"), so variants are listed
+  explicitly. The lists are a starting set and need tuning on real mail.
+- **A per-college override replaces only the keyword lists it names**; the rest inherit.
+  College recruiters are added to the global list.
+- **Emails of type OTHER are still matched**, and their hits carry `OTHER`. Dropping them would
+  turn every misclassification into a silent miss. Whether OTHER hits notify is a T7 decision.
+- **The subject line is matched too**, as its own chunk.
+- **One hit per user, for the first chunk they appear in** (subject, body, then attachments in
+  order). If two of their identifiers are in the same chunk, the lower identifier id wins, so
+  the result does not depend on hash order.
+- **Snippet = the matched chunk only**, cut to 300 characters with an ellipsis.
+- **The index refresh is not behind ShedLock**: each instance has its own copy to refresh.
+- **Optional ports are injected as `Optional<...>`**, so the app starts before T5 (no
+  `IdentifierSource`: index empty, one WARN) and before T6 (no sink: nothing stored).
+- `toString()` of `RawEmail`, `MatchHit` and `IndexedIdentifier` omits content and identifiers.
+
+### Performance (this machine)
+
+| Measurement | Time |
+| --- | --- |
+| Matching 50,000 row chunks x 10,000 identifiers (asserted < 5 s) | 1.0 s |
+| End to end, 50,000-row CSV attachment x 10,000 identifiers (asserted < 5 s) | 2.2 s |
+| End to end, 50,000-row .xlsx x 10,000 identifiers (not asserted) | 16.5 s cold |
+| of which: POI opening + reading 200,000 cells, in-memory mode | 4 to 11 s |
+| of which: same with excel-streaming-reader | 3.5 to 8 s |
+| of which: tokenizing all rows | 0.4 to 1.6 s |
+
+Both readers were tried with inline and shared strings; the cost is in POI, not in NeoBuddy code.
+An 11 s read is inside the 30 s extraction timeout but not by a wide margin on slow hardware.
+
+### Follow-ups
+
+- **Faster .xlsx reading**, if large sheets are common: read sheets with POI's SAX event API
+  (`XSSFReader` + `XSSFSheetXMLHandler`) instead of building cell objects. This would replace
+  both the in-memory path and excel-streaming-reader for .xlsx, so it changes a library choice
+  named in ARCHITECTURE.md and needs a decision.
+- T5: subscriber implements `IdentifierSource` (active users only) and publishes
+  `IdentifiersChanged`. T6: implement `ProcessingResultSink` and `AttachmentSource`, add an
+  attachment id to `AttachmentRef` for fetching, and decide the transaction boundary around
+  save + `MatchesFound`.
+- Identifier shapes the tokenizer cannot match: shorter than 4 characters, longer than 20 in a
+  cell, or containing characters other than letters, digits, spaces and hyphens (for example a
+  registration number written `21/BCE/1234`). Worth checking against real identifier formats in T5.
+- A chunk that names several students (a prose line, a PDF line) becomes the snippet for each of
+  them, so a snippet can contain another student's name or id. Inherent to line-based chunks.
+- Classifier keywords and company patterns are untested against real placement mail.

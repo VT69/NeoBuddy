@@ -1,5 +1,6 @@
 package com.neobuddy.processing.extract;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

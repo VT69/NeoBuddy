@@ -25,6 +25,63 @@ neobuddy:
     excel-streaming-threshold: 5MB
     timeout: 30s
     max-concurrent: 2
+  matching:
+    # How often each instance reloads its in-memory identifier index, as a safety net behind
+    # the rebuild that every identifier change triggers.
+    index-refresh: PT5M
+  classifier:
+    # Keywords are matched whole and case-insensitively; spaces and hyphens are interchangeable.
+    # The subject is checked before the body, and OFFER before SHORTLIST. Starting set, to be
+    # tuned against real placement mail. Per-college overrides go under classifier.colleges.<slug>.
+    rules:
+      offer:
+        subject:
+          - offer
+          - offers
+          - offered
+          - offer letter
+          - offer letters
+          - final selection
+          - final selections
+          - final selects
+          - final result
+          - final results
+          - placed
+          - ppo
+        body:
+          - offer letter
+          - offer letters
+          - job offer
+          - internship offer
+          - pleased to offer
+          - extended an offer
+          - extended offers
+          - received offers
+          - offers from
+          - final selection
+          - final selects
+          - finally selected
+      shortlist:
+        subject:
+          - shortlist
+          - shortlists
+          - shortlisted
+          - short list
+          - short listed
+          - interview schedule
+          - interview list
+          - next round
+          - selected for interview
+        body:
+          - shortlist
+          - shortlisted
+          - short list
+          - short listed
+          - selected for the next round
+          - selected for interview
+          - interview schedule
+    # Company names recognised anywhere in a subject line. Empty until real recruiters are known.
+    known-recruiters: []
 
 server:
   port: ${PORT:8080}

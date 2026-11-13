@@ -3,6 +3,7 @@ package com.neobuddy.processing.extract;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.neobuddy.ingestion.AttachmentRef;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.stream.Stream;

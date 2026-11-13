@@ -3,24 +3,71 @@ package com.neobuddy.processing.extract;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
-import java.util.stream.Collectors;
 
 /** Small text helpers shared by the extractors. */
 final class TextSupport {
 
   private TextSupport() {}
 
+  private static final char NO_BREAK_SPACE = (char) 0xA0;
+
   /** Collapses every run of whitespace (including non-breaking spaces) to one space and trims. */
   static String clean(String value) {
-    return value == null ? "" : value.replaceAll("[\\s\\u00A0]+", " ").strip();
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    StringBuilder out = new StringBuilder(value.length());
+    appendClean(out, value);
+    return out.toString();
   }
 
   /** Joins the non-blank cells of a row with {@link TextChunk#CELL_SEPARATOR}. */
   static String joinCells(Collection<String> cells) {
-    return cells.stream()
-        .map(TextSupport::clean)
-        .filter(cell -> !cell.isEmpty())
-        .collect(Collectors.joining(TextChunk.CELL_SEPARATOR));
+    StringBuilder row = new StringBuilder();
+    for (String cell : cells) {
+      appendCell(row, cell);
+    }
+    return row.toString();
+  }
+
+  /**
+   * Appends one cell to a row being built: cleaned, and preceded by the separator unless it is the
+   * first non-blank cell. A blank cell appends nothing.
+   */
+  static void appendCell(StringBuilder row, String cell) {
+    if (cell == null || cell.isEmpty()) {
+      return;
+    }
+    int rowLength = row.length();
+    if (rowLength > 0) {
+      row.append(TextChunk.CELL_SEPARATOR);
+    }
+    int cellStart = row.length();
+    appendClean(row, cell);
+    if (row.length() == cellStart) {
+      row.setLength(rowLength);
+    }
+  }
+
+  /**
+   * One pass, no regular expression and no intermediate strings: this runs once per cell of every
+   * row of every file.
+   */
+  private static void appendClean(StringBuilder out, String value) {
+    int start = out.length();
+    boolean pendingSpace = false;
+    for (int i = 0; i < value.length(); i++) {
+      char c = value.charAt(i);
+      if (c == NO_BREAK_SPACE || Character.isWhitespace(c)) {
+        pendingSpace = out.length() > start;
+      } else {
+        if (pendingSpace) {
+          out.append(' ');
+          pendingSpace = false;
+        }
+        out.append(c);
+      }
+    }
   }
 
   /**

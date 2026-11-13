@@ -1,13 +1,16 @@
 package com.neobuddy.processing.match;
 
+import com.neobuddy.processing.extract.TextChunk;
+import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.springframework.stereotype.Component;
 
 /**
  * Turns the text of one {@link com.neobuddy.processing.extract.TextChunk} into the set of tokens
  * that are looked up in the identifier index.
- *
- * <p><strong>T3: Vaibhav implements this class.</strong> The method throws until then. When it is
- * implemented, remove {@code @Disabled} from {@code TokenizerTests}.
  *
  * <h2>Contract</h2>
  *
@@ -42,7 +45,24 @@ import java.util.Set;
  * must not emit fragments of a longer alphanumeric run: {@code "Z9X8C7V6X"} yields {@code
  * Z9X8C7V6X} and not {@code Z9X8C7V6}.
  */
+@Component
 public class Tokenizer {
+
+  private static final int MIN_WORD_LENGTH = 4;
+  private static final int MIN_CELL_LENGTH = 4;
+  private static final int MAX_CELL_LENGTH = 20;
+
+  /**
+   * The local part is possessive ({@code ++}): it can never give characters back to find an
+   * {@code @}, so a long run without one is scanned once instead of once per start position.
+   */
+  private static final Pattern EMAIL =
+      Pattern.compile("[A-Za-z0-9._%+-]++@[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*\\.[A-Za-z]{2,}");
+
+  private static final Pattern NON_ALPHANUMERIC = Pattern.compile("[^A-Za-z0-9]+");
+
+  private static final Pattern CELL_SEPARATOR =
+      Pattern.compile(TextChunk.CELL_SEPARATOR, Pattern.LITERAL);
 
   /**
    * Tokenizes the text of one chunk, following the class contract.
@@ -51,6 +71,63 @@ public class Tokenizer {
    * @return the tokens; never null, possibly empty
    */
   public Set<String> tokenize(String text) {
-    throw new UnsupportedOperationException("T3 - Vaibhav implements");
+    Set<String> tokens = new HashSet<>();
+    if (text == null || text.isBlank()) {
+      return tokens;
+    }
+    addEmailAddresses(text, tokens);
+    addWords(text, tokens);
+    addCells(text, tokens);
+    return tokens;
+  }
+
+  private static void addEmailAddresses(String text, Set<String> tokens) {
+    if (text.indexOf('@') < 0) {
+      return;
+    }
+    Matcher matcher = EMAIL.matcher(text);
+    while (matcher.find()) {
+      tokens.add(matcher.group().toLowerCase(Locale.ROOT));
+    }
+  }
+
+  private static void addWords(String text, Set<String> tokens) {
+    for (String word : NON_ALPHANUMERIC.split(text)) {
+      if (word.length() >= MIN_WORD_LENGTH) {
+        tokens.add(word.toUpperCase(Locale.ROOT));
+      }
+    }
+  }
+
+  private static void addCells(String text, Set<String> tokens) {
+    for (String cell : CELL_SEPARATOR.split(text)) {
+      String normalized = normalizeCell(cell);
+      if (normalized != null) {
+        tokens.add(normalized);
+      }
+    }
+  }
+
+  /**
+   * The cell without spaces and hyphens, upper-cased, or null if what is left is not 4 to 20
+   * alphanumerics. One pass over the characters, no regular expression.
+   */
+  private static String normalizeCell(String cell) {
+    StringBuilder kept = new StringBuilder(Math.min(cell.length(), MAX_CELL_LENGTH));
+    for (int i = 0; i < cell.length(); i++) {
+      char c = cell.charAt(i);
+      if (c == ' ' || c == '-') {
+        continue;
+      }
+      if (!isAsciiAlphanumeric(c) || kept.length() == MAX_CELL_LENGTH) {
+        return null;
+      }
+      kept.append(c);
+    }
+    return kept.length() < MIN_CELL_LENGTH ? null : kept.toString().toUpperCase(Locale.ROOT);
+  }
+
+  private static boolean isAsciiAlphanumeric(char c) {
+    return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
   }
 }

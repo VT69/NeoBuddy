@@ -2,7 +2,6 @@ package com.neobuddy.processing.match;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -10,7 +9,6 @@ import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 /** The contract in {@link Tokenizer}'s Javadoc, as tests. All data is synthetic. */
-@Disabled("T3 - Vaibhav implements")
 class TokenizerTests {
 
   private final Tokenizer tokenizer = new Tokenizer();

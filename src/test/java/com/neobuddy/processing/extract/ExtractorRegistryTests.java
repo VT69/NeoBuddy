@@ -142,14 +142,28 @@ class ExtractorRegistryTests {
   }
 
   @Test
-  void csvIsSkippedUntilT3RegistersItsExtractor(CapturedOutput output) {
+  void csvAttachmentsAreExtractedRowByRow() {
     byte[] csv = "NeoID,Name\nZ9X8C7V6,Asha Example\n".getBytes(UTF_8);
 
     ExtractionResult result = extract(registry, "shortlist.csv", csv);
 
-    assertThat(result.status()).isEqualTo(Status.SKIPPED_UNSUPPORTED);
+    assertThat(result.status()).isEqualTo(Status.EXTRACTED);
     assertThat(result.type()).isEqualTo(DetectedType.CSV);
-    assertThat(output).contains("no extractor for detected type CSV");
+    assertThat(result.chunks())
+        .containsExactly(
+            new TextChunk("shortlist.csv", "R1", "NeoID | Name"),
+            new TextChunk("shortlist.csv", "R2", "Z9X8C7V6 | Asha Example"));
+  }
+
+  @Test
+  void aMalformedCsvFailsAloneAndLogsNoContent(CapturedOutput output) {
+    byte[] csv = "NeoID,Name\nZ9X8C7V6,\"Asha Example\n".getBytes(UTF_8);
+
+    ExtractionResult result = extract(registry, "broken.csv", csv);
+
+    assertThat(result.status()).isEqualTo(Status.FAILED);
+    assertThat(output)
+        .contains("Extraction failed for attachment 'broken.csv': Could not read the CSV");
     assertNoContentLogged(output);
   }
 
@@ -297,7 +311,8 @@ class ExtractorRegistryTests {
               new PdfExtractor(),
               new DocxExtractor(),
               new HtmlBodyExtractor(),
-              new PlainTextExtractor()));
+              new PlainTextExtractor(),
+              new CsvExtractor()));
     }
     return new ExtractorRegistry(extractors, new TypeDetector(), runner, properties);
   }

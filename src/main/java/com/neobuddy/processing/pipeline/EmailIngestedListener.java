@@ -4,11 +4,13 @@ import com.neobuddy.ingestion.EmailIngested;
 import com.neobuddy.ingestion.LoadedMail;
 import com.neobuddy.ingestion.MailReader;
 import com.neobuddy.ingestion.ProcessedEmails;
+import com.neobuddy.processing.EmailProcessingFailed;
 import com.neobuddy.processing.ProcessingService;
 import com.neobuddy.shared.college.College;
 import com.neobuddy.shared.college.CollegeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.modulith.events.ApplicationModuleListener;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -36,6 +38,7 @@ class EmailIngestedListener {
   private final ProcessingService processing;
   private final ProcessedEmails processedEmails;
   private final CollegeRepository colleges;
+  private final ApplicationEventPublisher events;
   private final TransactionTemplate inNewTransaction;
 
   EmailIngestedListener(
@@ -43,11 +46,13 @@ class EmailIngestedListener {
       ProcessingService processing,
       ProcessedEmails processedEmails,
       CollegeRepository colleges,
+      ApplicationEventPublisher events,
       PlatformTransactionManager transactionManager) {
     this.mailReader = mailReader;
     this.processing = processing;
     this.processedEmails = processedEmails;
     this.colleges = colleges;
+    this.events = events;
     this.inNewTransaction = new TransactionTemplate(transactionManager);
     this.inNewTransaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
   }
@@ -59,7 +64,13 @@ class EmailIngestedListener {
     } catch (RuntimeException | Error e) {
       log.warn(
           "Processing email {} failed: {}", event.rfcMessageId(), e.getClass().getSimpleName());
-      processedEmails.markFailed(event.rfcMessageId(), e.getClass().getName());
+      // One transaction for the status and the event, so the admin alert waits for the commit.
+      inNewTransaction.executeWithoutResult(status -> {
+        processedEmails.markFailed(event.rfcMessageId(), e.getClass().getName());
+        events.publishEvent(
+            new EmailProcessingFailed(
+                event.collegeId(), event.rfcMessageId(), e.getClass().getName()));
+      });
     }
   }
 

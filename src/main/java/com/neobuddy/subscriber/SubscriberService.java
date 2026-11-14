@@ -222,6 +222,16 @@ public class SubscriberService {
     return view(channel);
   }
 
+  /** Removes one of the user's channels; its queued alerts go with it. */
+  @Transactional
+  public void removeChannel(UUID userId, UUID channelId) {
+    Channel channel =
+        channels
+            .findByIdAndUserId(channelId, userId)
+            .orElseThrow(() -> new SubscriberNotFoundException("Channel"));
+    channels.delete(channel);
+  }
+
   /** Stops matching and alerts for the user without deleting anything. */
   @Transactional
   public void pause(UUID userId) {

@@ -1,13 +1,10 @@
 package com.neobuddy.notification.channel;
 
 import com.neobuddy.notification.Alert;
+import com.neobuddy.notification.AlertFormat;
 import com.neobuddy.processing.EventType;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.Locale;
 import org.springframework.stereotype.Component;
 import org.springframework.web.util.HtmlUtils;
 
@@ -19,53 +16,22 @@ import org.springframework.web.util.HtmlUtils;
 @Component
 class AlertRenderer {
 
-  static final ZoneId IST = ZoneId.of("Asia/Kolkata");
+  static final ZoneId IST = AlertFormat.IST;
+  static final String TEST_HEADLINE = AlertFormat.TEST_HEADLINE;
 
-  private static final DateTimeFormatter RECEIVED =
-      DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH).withZone(IST);
-  private static final String MAILBOX_SEARCH = "https://mail.google.com/mail/u/0/#search/";
-  private static final int MAX_HEADLINE_SUBJECT = 120;
-  static final String TEST_HEADLINE = "Test alert: NeoBuddy can reach you here";
-  private static final String NO_SNIPPET = "Your identifier appears in this email.";
   private static final String WHY =
       "You get this because one of your identifiers appears in a placement email.";
 
-  /** "Shortlisted: Company", "Offer: Company" or "You're mentioned: subject". Always one line. */
   String headline(Alert alert) {
-    if (alert.test()) {
-      return TEST_HEADLINE;
-    }
-    String subject = oneLine(alert.subject());
-    String company = oneLine(alert.company());
-    String about = !company.isEmpty() ? company : subject;
-    if (about.isEmpty()) {
-      about = "a placement email";
-    }
-    return switch (alert.eventType()) {
-      case SHORTLIST -> "Shortlisted: " + shortened(about);
-      case OFFER -> "Offer: " + shortened(about);
-      case OTHER -> "You're mentioned: " + shortened(subject.isEmpty() ? about : subject);
-    };
+    return AlertFormat.headline(alert);
   }
 
-  /** For example "13 Nov 2026, 4:05 PM IST". */
   String receivedAt(Alert alert) {
-    return RECEIVED.format(alert.receivedAt()) + " IST";
+    return AlertFormat.receivedAt(alert);
   }
 
-  /** Opens Gmail's search for exactly this email, in whichever mailbox the reader is signed in. */
   String mailboxLink(Alert alert) {
-    if (alert.test()) {
-      // A test is about no real email, so there is nothing to find.
-      return null;
-    }
-    String id = alert.rfcMessageId().strip();
-    if (id.startsWith("<") && id.endsWith(">")) {
-      id = id.substring(1, id.length() - 1);
-    }
-    return MAILBOX_SEARCH
-        + "rfc822msgid:"
-        + URLEncoder.encode(id, StandardCharsets.UTF_8).replace("+", "%20");
+    return AlertFormat.mailboxLink(alert);
   }
 
   NtfyMessage ntfy(Alert alert) {
@@ -152,20 +118,7 @@ class AlertRenderer {
   }
 
   private static String snippet(Alert alert) {
-    return alert.snippet() == null || alert.snippet().isBlank()
-        ? NO_SNIPPET
-        : alert.snippet().strip();
-  }
-
-  /** Collapses line breaks and control characters, so the text is safe in a header or subject. */
-  private static String oneLine(String value) {
-    return value == null ? "" : value.replaceAll("[\\s\\p{Cntrl}]+", " ").strip();
-  }
-
-  private static String shortened(String value) {
-    return value.length() <= MAX_HEADLINE_SUBJECT
-        ? value
-        : value.substring(0, MAX_HEADLINE_SUBJECT - 1).stripTrailing() + "…";
+    return AlertFormat.snippet(alert);
   }
 
   private static String escape(String value) {

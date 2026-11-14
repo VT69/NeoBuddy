@@ -9,7 +9,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *
  * @param emailOtpValidity how long an emailed one-time code works
  * @param emailOtpMaxAttempts how many guesses a code allows before it stops working
+ * @param discordLinkCodeValidity how long a Discord {@code /link} code works
  */
 @ConfigurationProperties(prefix = "neobuddy.verification")
 public record VerificationProperties(
-    @DefaultValue("PT10M") Duration emailOtpValidity, @DefaultValue("5") int emailOtpMaxAttempts) {}
+    @DefaultValue("PT10M") Duration emailOtpValidity,
+    @DefaultValue("5") int emailOtpMaxAttempts,
+    @DefaultValue("PT10M") Duration discordLinkCodeValidity) {}

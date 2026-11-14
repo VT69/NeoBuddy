@@ -40,7 +40,13 @@ public record AlertSummary(
   /**
    * @param channelType null if the channel was removed since
    * @param sentAt when the channel accepted it; null unless SENT
+   * @param lastError the short technical reason of the last failure, such as {@code HTTP 503} or
+   *     {@code DISCORD_DMS_CLOSED}; null if none
    */
   public record Delivery(
-      ChannelType channelType, DeliveryStatus status, int attempts, Instant sentAt) {}
+      ChannelType channelType,
+      DeliveryStatus status,
+      int attempts,
+      Instant sentAt,
+      String lastError) {}
 }

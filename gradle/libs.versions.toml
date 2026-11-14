@@ -23,6 +23,7 @@ aws-sdk = "2.59.0"
 wiremock = "3.13.2"
 bucket4j = "8.22.0"
 zxing = "3.5.4"
+jda = "6.7.0"
 
 [libraries]
 # BOMs
@@ -76,6 +77,9 @@ aws-sesv2 = { module = "software.amazon.awssdk:sesv2", version.ref = "aws-sdk" }
 # Web (rate limits, QR codes)
 bucket4j-core = { module = "com.bucket4j:bucket4j_jdk17-core", version.ref = "bucket4j" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+
+# Discord bot
+jda = { module = "net.dv8tion:JDA", version.ref = "jda" }
 
 # Testing
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }

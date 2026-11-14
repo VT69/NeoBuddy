@@ -15,6 +15,7 @@ import com.neobuddy.ingestion.gmail.GmailTestServer.HistoryRecord;
 import com.neobuddy.ingestion.gmail.GmailTestServer.TestMessage;
 import com.neobuddy.ingestion.source.SourceInbox;
 import com.neobuddy.ingestion.source.SourceSync;
+import com.neobuddy.processing.EmailProcessingFailed;
 import com.neobuddy.shared.college.College;
 import com.neobuddy.subscriber.IdentifierType;
 import com.neobuddy.subscriber.OidcClaims;
@@ -29,6 +30,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -36,6 +38,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Import;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
@@ -43,7 +47,10 @@ import org.springframework.transaction.support.TransactionTemplate;
  * it, publishes {@code EmailIngested}; the listener fetches the message and its spreadsheet, runs
  * the processing pipeline, and the matches land in {@code match_hit}. All mail is synthetic.
  */
+@Import(IngestionPipelineTests.FailureRecorder.class)
 class IngestionPipelineTests extends GmailBackedDatabaseTest {
+
+  @Autowired private FailureRecorder failures;
 
   @Autowired private SourceSync sync;
   @Autowired private SubscriberService subscribers;
@@ -248,6 +255,31 @@ class IngestionPipelineTests extends GmailBackedDatabaseTest {
         .containsEntry("event_type", null);
     assertThat(email.get("processed_at")).isNotNull();
     assertThat(count("match_hit", "email_id", messageId)).isZero();
+    // The admin is told (by the Discord module, when it runs): ids and the class only.
+    await()
+        .atMost(Duration.ofSeconds(30))
+        .untilAsserted(() ->
+            assertThat(failures.received())
+                .anySatisfy(failed -> {
+                  assertThat(failed.rfcMessageId()).isEqualTo(messageId);
+                  assertThat(failed.collegeId()).isEqualTo(college.getId());
+                  assertThat(failed.errorClass())
+                      .isEqualTo("com.neobuddy.ingestion.source.MailSourceException");
+                }));
+  }
+
+  /** Records processing failures as a listener after commit would see them. */
+  static class FailureRecorder {
+    private final List<EmailProcessingFailed> received = new CopyOnWriteArrayList<>();
+
+    @TransactionalEventListener
+    void on(EmailProcessingFailed event) {
+      received.add(event);
+    }
+
+    List<EmailProcessingFailed> received() {
+      return received;
+    }
   }
 
   @Test

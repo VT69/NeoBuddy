@@ -13,11 +13,13 @@ import com.neobuddy.subscriber.SubscriberView;
 import com.neobuddy.web.me.MeViews.Alert;
 import com.neobuddy.web.me.MeViews.Alerts;
 import com.neobuddy.web.me.MeViews.Channel;
+import com.neobuddy.web.me.MeViews.DiscordLink;
 import com.neobuddy.web.me.MeViews.EmailVerificationStarted;
 import com.neobuddy.web.me.MeViews.Identifier;
 import com.neobuddy.web.me.MeViews.Me;
 import com.neobuddy.web.me.MeViews.NtfySetup;
 import com.neobuddy.web.me.MeViews.TestAlertQueued;
+import com.neobuddy.web.support.DiscordUnavailableException;
 import com.neobuddy.web.support.EmailCodeRejectedException;
 import com.neobuddy.web.support.QrCodes;
 import com.neobuddy.web.support.RateLimiter;
@@ -43,6 +45,8 @@ public class MeService {
   private final AlertHistory history;
   private final RateLimiter rateLimiter;
   private final String ntfyBaseUrl;
+  private final boolean discordEnabled;
+  private final String discordInviteUrl;
 
   MeService(
       SubscriberService subscribers,
@@ -51,7 +55,9 @@ public class MeService {
       TestAlerts testAlerts,
       AlertHistory history,
       RateLimiter rateLimiter,
-      @Value("${neobuddy.channels.ntfy.base-url:https://ntfy.sh}") String ntfyBaseUrl) {
+      @Value("${neobuddy.channels.ntfy.base-url:https://ntfy.sh}") String ntfyBaseUrl,
+      @Value("${neobuddy.discord.token:}") String discordToken,
+      @Value("${neobuddy.discord.invite-url:}") String discordInviteUrl) {
     this.subscribers = subscribers;
     this.channels = channels;
     this.verification = verification;
@@ -59,6 +65,42 @@ public class MeService {
     this.history = history;
     this.rateLimiter = rateLimiter;
     this.ntfyBaseUrl = ntfyBaseUrl.strip().replaceAll("/+$", "");
+    // Only whether a bot runs here; the token itself is not kept.
+    this.discordEnabled = !discordToken.isBlank();
+    this.discordInviteUrl = discordInviteUrl.isBlank() ? null : discordInviteUrl.strip();
+  }
+
+  /** True when this deployment runs the Discord bot. */
+  public boolean discordEnabled() {
+    return discordEnabled;
+  }
+
+  /**
+   * A code for {@code /link}, valid for 10 minutes; replaces any earlier one. At most 5 an hour.
+   *
+   * @throws DiscordUnavailableException if no Discord bot runs here
+   */
+  public DiscordLink createDiscordLinkCode(UUID userId) {
+    if (!discordEnabled) {
+      throw new DiscordUnavailableException();
+    }
+    rateLimiter.consume(Limit.DISCORD_LINK_CODE, userId.toString());
+    ChannelVerificationService.DiscordLinkCode created = verification.createDiscordLinkCode(userId);
+    String shown = created.code().substring(0, 4) + "-" + created.code().substring(4);
+    return new DiscordLink(shown, "/link code:" + shown, created.expiresAt(), discordInviteUrl);
+  }
+
+  /**
+   * True when the latest Discord alert failed because the student does not accept DMs from server
+   * members, so the dashboard can say how to fix it.
+   */
+  public boolean discordDmsClosed(Alerts alerts) {
+    return alerts.items().stream()
+        .flatMap(alert -> alert.deliveries().stream())
+        .filter(d -> d.channelType() == ChannelType.DISCORD)
+        .findFirst()
+        .map(d -> MeViews.Delivery.DISCORD_DMS_CLOSED.equals(d.lastError()))
+        .orElse(false);
   }
 
   public Me me(UUID userId) {

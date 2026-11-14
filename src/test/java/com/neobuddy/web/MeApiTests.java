@@ -464,6 +464,11 @@ class MeApiTests extends WebDatabaseTest {
     problem(call(post("/api/v1/me/channels/" + theirs + "/test")), 404, "channel-not-found");
   }
 
+  @Test
+  void withoutADiscordBotThereIsNoLinkCode() throws Exception {
+    problem(call(post("/api/v1/me/channels/discord/link-code")), 503, "discord-unavailable");
+  }
+
   private static String wrong(String code) {
     return code.equals("000000") ? "000001" : "000000";
   }

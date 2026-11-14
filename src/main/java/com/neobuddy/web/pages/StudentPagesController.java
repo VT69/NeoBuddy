@@ -4,6 +4,7 @@ import com.neobuddy.subscriber.IdentifierType;
 import com.neobuddy.subscriber.SubscriberNotFoundException;
 import com.neobuddy.web.auth.NeoBuddyUser;
 import com.neobuddy.web.me.MeService;
+import com.neobuddy.web.me.MeViews;
 import com.neobuddy.web.me.MeViews.Me;
 import com.neobuddy.web.support.Problems;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,7 +50,10 @@ class StudentPagesController {
     }
     model.addAttribute("me", current);
     model.addAttribute("ntfy", me.existingNtfySetup(current));
-    model.addAttribute("alerts", me.alerts(current.id(), 0));
+    MeViews.Alerts alerts = me.alerts(current.id(), 0);
+    model.addAttribute("alerts", alerts);
+    model.addAttribute("discordEnabled", me.discordEnabled());
+    model.addAttribute("discordDmsClosed", me.discordDmsClosed(alerts));
     return "dashboard";
   }
 
@@ -68,6 +72,8 @@ class StudentPagesController {
     model.addAttribute("googleEmail", user.getEmail());
     if (shown == 3) {
       model.addAttribute("ntfy", me.existingNtfySetup(current));
+      model.addAttribute("discordEnabled", me.discordEnabled());
+      model.addAttribute("discordDmsClosed", false);
     }
     return "onboarding";
   }

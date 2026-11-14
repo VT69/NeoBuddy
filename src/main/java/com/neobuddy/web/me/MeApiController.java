@@ -7,6 +7,7 @@ import com.neobuddy.web.me.MeRequests.StartEmail;
 import com.neobuddy.web.me.MeRequests.VerifyEmail;
 import com.neobuddy.web.me.MeViews.Alerts;
 import com.neobuddy.web.me.MeViews.Channel;
+import com.neobuddy.web.me.MeViews.DiscordLink;
 import com.neobuddy.web.me.MeViews.EmailVerificationStarted;
 import com.neobuddy.web.me.MeViews.Identifier;
 import com.neobuddy.web.me.MeViews.Me;
@@ -36,7 +37,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * The student API (docs/ARCHITECTURE.md, APIs: Student endpoints), JSON in and out. The same paths
  * answer htmx requests with HTML fragments ({@link MeFragmentsController}). Errors are RFC 9457
- * problems ({@link MeApiProblems}). Discord linking arrives with T10.
+ * problems ({@link MeApiProblems}).
  */
 @RestController
 @RequestMapping("/api/v1/me")
@@ -99,6 +100,13 @@ class MeApiController {
   ResponseEntity<NtfySetup> createNtfy(@AuthenticationPrincipal NeoBuddyUser user) {
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(me.createNtfyChannel(user.requireUserId()));
+  }
+
+  /** A code for /link in the NeoBuddy Discord server, valid for 10 minutes. */
+  @PostMapping("/channels/discord/link-code")
+  ResponseEntity<DiscordLink> discordLinkCode(@AuthenticationPrincipal NeoBuddyUser user) {
+    return ResponseEntity.status(HttpStatus.CREATED)
+        .body(me.createDiscordLinkCode(user.requireUserId()));
   }
 
   @PatchMapping("/channels/{id}")

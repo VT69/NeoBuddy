@@ -830,3 +830,100 @@ the new SSM parameters below, and has **not** been done. Migration V3.
 - `/api/v1/me/channels/discord/link-code` comes with T10.
 - A student who loses their phone can see their topic again on the dashboard; there is no way yet
   to show the QR code to someone not signed in, by design.
+
+## T10 · Discord bot and DM channel (2026-11-14)
+
+Status: **built and tested with mocked JDA objects; not run against Discord.** `./gradlew build` could **not** run
+in this sandbox: Maven Central rate-limited it (HTTP 429) while JDA's dependencies were being
+fetched, and the retries left Gradle's dependency cache unusable here. Instead every main and test
+class was compiled with `javac` against the cached jars and the **whole suite ran through the JUnit
+Platform launcher against the local `neobuddy_test` database: 752 tests, 0 failed** (including
+`ModularityTests`); formatting was checked with google-java-format 2.0.0, the version Spotless
+uses. CI runs the real `./gradlew build` on the push.
+The "done when" (deployed; you link with /link and a test alert arrives as a DM; a forced
+SourceAuthExpired posts in #ops) needs the bot token and the server/channel ids in SSM and a
+deploy, and has **not** been done. No schema change.
+
+### What was built
+
+- **Discord module** (`com.neobuddy.discord`, internals in `discord.bot`), switched off as a whole
+  when `DISCORD_TOKEN` is empty (local runs, tests): `DiscordEnabled` condition on one
+  `DiscordConfig`. JDA 6.7.0 (named in ARCHITECTURE.md), without the audio codec.
+- **JDA:** `createLight` with no optional gateway intents (JDA always adds GUILDS, checked in its
+  bytecode), no member cache, no chunking; connects in the background so a Discord outage never
+  stops the app; on shutdown waits up to 10 s, then forces it.
+- **Slash commands** in the configured server, all ephemeral (deferred at once, answered when
+  the database work is done): `/link code`, `/status` (alerts on/paused, identifiers, last 3
+  alerts), `/pause`, `/resume`, `/unlink`. Commands from other servers are refused.
+- **Linking** (`ChannelVerificationService`): 8-character codes from an alphabet without
+  look-alikes, stored only as a SHA-256 hash, valid 10 minutes, single use, a new code replaces
+  the old one. `/link` stores the Discord user id encrypted as the channel address and marks it
+  verified, then DMs a confirmation (and says how to allow DMs if that fails). 5 attempts per 10
+  minutes per Discord user.
+- **Web:** "Connect Discord" on the dashboard and onboarding calls
+  `POST /api/v1/me/channels/discord/link-code` (JSON: code, command, expiry, invite; htmx: the
+  steps), 5 codes per hour per user, 503 `discord-unavailable` without a bot. A linked channel
+  shows its state, Send test and Pause; when Discord refused a DM, the dashboard explains how to
+  allow DMs from server members, and the history says "Discord: DMs closed".
+- **`DiscordDmChannel`** (a `NotificationChannel`): opens the private channel and sends an embed
+  (headline linking to the mailbox search, the row in a code block, company, received time in
+  IST, colour by type). 50007 → PERMANENT `DISCORD_DMS_CLOSED`; unknown user → PERMANENT;
+  Discord 5xx, network failures, bot not connected → RETRYABLE; other refusals PERMANENT with the
+  numeric code only.
+- **`AdminNotifier`** posts to #ops: `SourceAuthExpired` (every time), more than 5 `DeliveryDead`
+  within an hour (once per hour), and the new `EmailProcessingFailed` event (at most once per 10
+  minutes, with a count of the rest).
+- **Supporting changes:** `AlertFormat` (public, the wording shared by all channels, used by
+  `AlertRenderer` and the embed); `AlertSummary.Delivery.lastError`; `EmailProcessingFailed`
+  published by processing in the transaction that marks the email FAILED;
+  `SubscriberService.removeChannel`; `ChannelDirectory.findByAddress`.
+- **Docs:** runbook section 9 (Discord) and the four SSM parameters; privacy policy and consent
+  text name Discord.
+- **Tests:** 48 new. Slash commands through the listener with mocked JDA events (each
+  command, ephemeral replies, other servers refused, registration on ready); the command logic
+  against the database (link, confirmation DM, code reuse, expiry, replacement, another
+  account's Discord, attempt limit, status, pause/resume, unlink); DM error mapping with mocked
+  JDA (50007, unknown user, 5xx, other codes, network, not connected; embed contents); #ops
+  thresholds and throttles; the app with the bot switched on and only JDA mocked (link-code
+  endpoint and rate limit, dashboard, end-to-end link, Discord test alert, DM hint, #ops post on
+  `SourceAuthExpired`); the module switch; 503 without a bot; `EmailProcessingFailed` after a
+  failed email.
+
+### Decisions
+
+- **`DiscordDmChannel` lives in the discord module, not notification** (ARCHITECTURE.md lists it
+  under notification). It needs the JDA client, and the discord module already depends on
+  notification for `/status`; the other way round would be a module cycle. It implements
+  notification's public `NotificationChannel`, so the dispatcher treats it like the others.
+- **Finding a student by Discord id decrypts and compares.** Addresses use AES-GCM with a random
+  IV, so the database cannot look one up. Each command decrypts the DISCORD channels; fine for one
+  college's server, not for thousands of users. A keyed hash column would fix it; that is a
+  schema change to agree first.
+- **One Discord account, one NeoBuddy account:** `/link` refuses a Discord account linked
+  elsewhere until it is unlinked there. Linking the same account again is harmless.
+- **Rate limits are not a failure for DMs:** JDA waits for Discord's rate-limit window before a
+  request completes, so a send is slower, never RETRYABLE for that reason.
+- **Ops posts are best effort** (logged on failure, never retried), so a misconfigured #ops
+  channel cannot pile up event publications.
+- **Unlinking is done in Discord (`/unlink`)**; the API section has no endpoint to delete a
+  channel, so the dashboard points there.
+
+### Needed before deploying
+
+- SSM: `DISCORD_TOKEN`, `NEOBUDDY_DISCORD_GUILD_ID`, `NEOBUDDY_DISCORD_OPS_CHANNEL_ID`, optionally
+  `NEOBUDDY_DISCORD_INVITE_URL`. With a token but without the two ids the app refuses to start,
+  naming the missing one.
+- In the server: the bot needs to send messages in #ops; students need "allow DMs from server
+  members" (Discord's default for new servers, as far as I know; not checked).
+
+### Not verified
+
+- **Real Discord:** login, command registration, ephemeral replies, DMs, 50007 and the #ops posts
+  ran only against mocks. The error-code mapping follows JDA's `ErrorResponse` enum.
+- **The forced SourceAuthExpired post in #ops** on the real server (runbook section 9 says how).
+
+### Follow-ups
+
+- Keyed hash of the Discord id for lookups (schema change), before many students link.
+- `/link` attempt limits and the #ops throttles are per instance, in memory.
+- The "allow DMs" hint only appears after a DM failed; `/link` already warns at linking time.

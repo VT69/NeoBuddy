@@ -19,6 +19,11 @@ public interface LinkCodeRepository extends JpaRepository<LinkCode, String> {
   @Query("select c from LinkCode c where c.userId = :userId and c.channelType = :type")
   List<LinkCode> findForUpdate(@Param("userId") UUID userId, @Param("type") ChannelType type);
 
+  /** One code by its stored form (the hash), row-locked so it can be used only once. */
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select c from LinkCode c where c.code = :code")
+  java.util.Optional<LinkCode> findCodeForUpdate(@Param("code") String code);
+
   @Modifying(flushAutomatically = true, clearAutomatically = false)
   @Query("delete from LinkCode c where c.userId = :userId and c.channelType = :type")
   int deleteByUserIdAndChannelType(@Param("userId") UUID userId, @Param("type") ChannelType type);

@@ -109,7 +109,8 @@ class DeliveryQueries implements TestAlerts, AlertHistory {
                           channelTypes.get(row.channelId()),
                           DeliveryStatus.valueOf(row.status()),
                           row.attempts(),
-                          row.sentAt()))
+                          row.sentAt(),
+                          row.lastError()))
                   .sorted(
                       Comparator.comparing(
                           AlertSummary.Delivery::channelType,

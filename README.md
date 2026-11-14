@@ -45,15 +45,21 @@ Never commit it.
 
 ## Run locally
 
+Students sign in with Google, so the app needs the "neobuddy-login" OAuth client (type "Web
+application", scopes `openid email profile`, redirect URI
+`http://localhost:8080/login/oauth2/code/google`). It does not start without it.
+
 ```bash
 export NEOBUDDY_ENCRYPTION_KEY=<your key>
+export NEOBUDDY_GOOGLE_CLIENT_ID=<client id>
+export NEOBUDDY_GOOGLE_CLIENT_SECRET=<client secret>
 ./gradlew bootRun --args='--spring.profiles.active=local'
 curl http://localhost:8080/actuator/health   # {"status":"UP", ...}
 ```
 
 ## Bootstrap: your college and you
 
-Until there is a sign-up UI, the first college and its admin are created from environment
+Until there is an admin console (T11), the first college and its admin are created from environment
 variables at startup. It is an upsert: starting again with the same values changes nothing, and
 changed values update in place. Leave `NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG` unset to seed nothing.
 

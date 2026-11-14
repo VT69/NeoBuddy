@@ -99,6 +99,8 @@ class DeployScriptsTests {
     values.put("NEOBUDDY_ENCRYPTION_KEY", "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
     values.put("NEOBUDDY_DOMAIN", "neobuddy.example.com");
     values.put("NEOBUDDY_SES_FROM", "NeoBuddy <alerts@neobuddy.example.com>");
+    values.put("NEOBUDDY_GOOGLE_CLIENT_ID", "123-abc.apps.googleusercontent.com");
+    values.put("NEOBUDDY_GOOGLE_CLIENT_SECRET", "GOCSPX-test-secret");
     return values;
   }
 
@@ -126,6 +128,8 @@ class DeployScriptsTests {
             "NEOBUDDY_ENCRYPTION_KEY='AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8='",
             "NEOBUDDY_DOMAIN='neobuddy.example.com'",
             "NEOBUDDY_SES_FROM='NeoBuddy <alerts@neobuddy.example.com>'",
+            "NEOBUDDY_GOOGLE_CLIENT_ID='123-abc.apps.googleusercontent.com'",
+            "NEOBUDDY_GOOGLE_CLIENT_SECRET='GOCSPX-test-secret'",
             "NEOBUDDY_BOOTSTRAP_COLLEGE_NEO_ID_PATTERN='^[A-Z0-9]{8}$'",
             "EMPTY_ONE=''");
     assertThat(Files.getPosixFilePermissions(out))

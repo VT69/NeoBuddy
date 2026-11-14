@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -124,6 +125,40 @@ class DeliveryStore {
             bounded(error),
             id)
         == 1;
+  }
+
+  /** One delivery as the alert history shows it. */
+  record Row(UUID id, UUID matchId, UUID channelId, String status, int attempts, Instant sentAt) {}
+
+  /** Every delivery of the given matches. */
+  List<Row> ofMatches(List<UUID> matchIds) {
+    if (matchIds.isEmpty()) {
+      return List.of();
+    }
+    return jdbc.query(
+        "select id, match_id, channel_id, status, attempts, sent_at from delivery"
+            + " where match_id = any (?)",
+        (rs, row) ->
+            new Row(
+                rs.getObject("id", UUID.class),
+                rs.getObject("match_id", UUID.class),
+                rs.getObject("channel_id", UUID.class),
+                rs.getString("status"),
+                rs.getInt("attempts"),
+                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant()),
+        (Object) matchIds.toArray(UUID[]::new));
+  }
+
+  /** The id of the delivery of this match to this channel, if there is one. */
+  Optional<UUID> idOf(UUID matchId, UUID channelId) {
+    return jdbc
+        .query(
+            "select id from delivery where match_id = ? and channel_id = ?",
+            (rs, row) -> rs.getObject("id", UUID.class),
+            matchId,
+            channelId)
+        .stream()
+        .findFirst();
   }
 
   private static OffsetDateTime timestamp(Instant instant) {

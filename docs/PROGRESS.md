@@ -727,3 +727,106 @@ mocked) pass with Terraform 1.17.2 and AWS provider 6.73.0. No schema change.
 - OS patching is manual (`dnf upgrade --releasever=latest`), see the runbook.
 - Backup failures are visible only in the instance's journal until there is an alarm.
 - The Jib Gradle plugin triggers a Gradle 10 deprecation warning when its tasks run.
+
+## T9 · Web: Google sign-in, onboarding and the student dashboard (2026-11-13)
+
+Status: **built and tested locally; not deployed, not tried on a phone or with real Google.**
+`./gradlew build` is green against a local `neobuddy_test` database: 704 tests, 0 failed, 0
+skipped. The real sign-in flow is tested end to end against a fake Google (WireMock issuing
+RS256-signed ID tokens). The public pages were checked in Chromium at phone size: no console or
+CSP errors, no sideways scrolling. The "done when" (deployed; a classmate signs up on a phone,
+verifies push and email and gets a test alert; a Gmail account is refused) needs the deployment and
+the new SSM parameters below, and has **not** been done. Migration V3.
+
+### What was built
+
+- **Sign-in:** `oauth2Login` with Google (`openid email profile`). `CollegeDomainOidcUserService`
+  checks the `hd` claim when present and the email domain against ACTIVE or PILOT colleges
+  (`SubscriberService.signIn`). Refused sign-ins land on `/not-supported` (with a "request your
+  college" form) or `/sign-in-problem`; a paused college on `/not-supported?paused`.
+- **Consent step:** a student of a supported college without an account is PENDING_CONSENT, and
+  nothing is stored until they accept; accepting calls `registerFromOidc` (sets `consented_at`) and
+  turns the session into a USER session. ADMIN comes from `app_user.role`.
+- **Pages** (Thymeleaf + htmx 2.0.11, hand-written mobile-first CSS, light and dark): landing,
+  consent, onboarding wizard (NeoID; optional registration number and college email; channels),
+  dashboard (identifiers, channels with status and test buttons, last 20 alerts refreshing every
+  30 s), settings (pause all / resume all, delete account with confirmation), privacy policy,
+  terms, error page.
+- **API:** every student endpoint of ARCHITECTURE.md under `/api/v1/me` except Discord's link code
+  (T10). JSON with Bean Validation and RFC 9457 problems (`/problems/<type>`). The same paths answer
+  htmx requests (`HX-Request: true`) with HTML fragments; errors then go to the page's flash area.
+- **Channels:** email code via SES (through T7's verification service); ntfy topic with an inline
+  SVG QR code (ZXing) and subscribe steps; test alerts through the normal delivery pipeline.
+- **Rate limits** (Bucket4j, in memory): 3 codes per hour per user, 5 test alerts per hour per user,
+  5 college requests per hour per client address; 5 guesses per code (T7). 429 with `Retry-After`.
+- **Security:** CSRF on (htmx sends the token via `hx-headers`); session cookie
+  `NEOBUDDY_SESSION`, Secure, HttpOnly, SameSite=Lax, 12 h; strict Content-Security-Policy (self
+  only, no inline script or style); `X-Frame-Options: DENY`. Unauthenticated API calls get a 401
+  problem, htmx calls an `HX-Redirect`.
+- **Backend for it:** `TestAlerts` and `AlertHistory` (notification), `TestMatches` and
+  `StoredMatches.ofUser` (processing), `ProcessedEmails.recordTestEmail` (ingestion),
+  `SubscriberService.signIn` and `setChannelEnabled`, `ChannelDirectory.addressOf`. Test alerts
+  say "Test alert: NeoBuddy can reach you here" and carry no Gmail link.
+- **Snippet retention:** a nightly job clears match snippets older than 180 days, which the
+  privacy policy promises (ARCHITECTURE.md specified it; nothing did it yet).
+- **Migration V3:** `college_request`; `is_test` on `processed_email` and `match_hit`;
+  `processed_email.source_id` nullable, with a check that only test emails may lack it.
+- **Deploy workflow fix** (from the failed run you sent): with no repository variables it now
+  skips with a notice instead of failing, and the error for a partial setup names the real
+  variables (`AWS_DEPLOY_ROLE_ARN`...), not internal names.
+- **Tests (98 new):** JSON API (29), htmx fragments (14), pages (28), Google sign-in end to end
+  (8), test-alert delivery (5), snippet retention, rate limiter, QR codes, subscriber sign-in.
+
+### Decisions
+
+- **The account is created at consent, not at sign-in.** The task says the OidcUserService calls
+  `registerFromOidc`; it calls `signIn`, which checks the domain and finds (or, for the bootstrap
+  admin, links) an existing account but creates none. `registerFromOidc` runs when the student
+  accepts the consent notice. So someone who signs in and walks away leaves nothing behind, and
+  `consented_at` is the moment of the click.
+- **A test alert is a real synthetic match.** It needs an email for the match to point at, so the
+  test email gets a `processed_email` row without a source inbox, flagged `is_test`; the match is
+  flagged too. Both flags let T11 leave them out of statistics. The history shows them, labelled.
+  It is queued for the one channel tested, not through `MatchesFound`.
+- **"Pause all" switches every channel off**, rather than `SubscriberService.pause`, which would
+  also stop matching. Matches keep being recorded, so the dashboard still shows what arrived.
+- **One path, two representations.** htmx needs HTML, the API is JSON; rather than two URL trees,
+  `MeFragmentsController` takes the same paths when `HX-Request` is present. Both call `MeService`.
+- **Wizard steps 1 and 2 are plain form posts** (work without JavaScript); step 3 reuses the
+  dashboard's channel fragment.
+- **Problem types** are relative URIs `/problems/<slug>`, e.g. `identifier-already-claimed` (409),
+  `code-locked` (429), `rate-limited` (429), `channel-not-ready` (409). Messages never echo input.
+- **Sessions live in memory**: a deploy signs everyone out (one tap back). Spring Session JDBC would
+  fix it but is a new dependency.
+- **htmx is vendored** (`static/js/htmx-2.0.11.min.js`, 0BSD), checked against npm's integrity hash.
+- **New dependencies** Bucket4j 8.22.0 and ZXing 3.5.4 (both named in the task), plus Spring Boot's
+  webmvc-test and oauth2-client-test starters for MockMvc and `oidcLogin()`.
+- **Public interface changes** (asked for by the task's features): `StoredMatch` gained
+  `createdAt` and `test`; `Alert` gained `test` (old constructor kept); the additions listed above.
+
+### Needed before deploying
+
+- SSM parameters `NEOBUDDY_GOOGLE_CLIENT_ID` and `NEOBUDDY_GOOGLE_CLIENT_SECRET` (the
+  `neobuddy-login` client). The app does not start without them, and `render-env.sh` now refuses to
+  deploy without them. Optional: `NEOBUDDY_CONTACT_EMAIL`, shown on the privacy policy and terms.
+- Locally the same two values as environment variables (README, "Run locally").
+
+### Not verified
+
+- **Real Google:** the flow ran only against WireMock; the real consent screen, `hd` claims of
+  your college's Workspace and the production redirect URI are untested.
+- **Signed-in pages in a real browser:** dashboard, onboarding and settings were checked through
+  MockMvc's HTML, not rendered on a phone. htmx behaviour (swaps, confirm dialogs, the flash area)
+  has not run in a browser.
+- **ntfy QR code** encodes `https://ntfy.sh/<topic>`; whether the ntfy app offers to subscribe from
+  that link was not checked. The steps tell students to add the topic by hand.
+- **SES** sending of codes from the cloud (T7's open point).
+
+### Follow-ups
+
+- Read the privacy policy and terms yourself before students see them; set the contact address.
+- College requests have no admin view yet (T11).
+- Rate limits and sessions are per instance and reset on restart.
+- `/api/v1/me/channels/discord/link-code` comes with T10.
+- A student who loses their phone can see their topic again on the dashboard; there is no way yet
+  to show the QR code to someone not signed in, by design.

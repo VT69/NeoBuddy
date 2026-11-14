@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<section th:fragment="identifiers" id="identifiers" class="card">
+  <h2>How NeoBuddy finds you</h2>
+  <p class="notice ok" th:if="${message}" th:text="${message}" role="status"></p>
+  <ul class="items">
+    <li th:each="identifier : ${me.identifiers}">
+      <span class="item-label" th:text="${identifier.label()}">NeoID</span>
+      <code th:text="${identifier.value}">N1B7J5V6</code>
+      <button class="button small" type="button"
+              th:hx-delete="@{/api/v1/me/identifiers/{id}(id=${identifier.id})}"
+              hx-target="#identifiers" hx-swap="outerHTML"
+              th:hx-confirm="|Remove your ${identifier.label()}? Emails that list only this will no longer alert you.|">Remove</button>
+    </li>
+    <li th:if="${#lists.isEmpty(me.identifiers)}" class="muted">No identifiers yet.</li>
+  </ul>
+  <form th:if="${#lists.size(me.identifiers) < 3}" class="stack" hx-post="/api/v1/me/identifiers" hx-target="#identifiers" hx-swap="outerHTML">
+    <label for="identifier-type">Add an identifier</label>
+    <select id="identifier-type" name="type" required>
+      <option th:unless="${me.identifier(T(com.neobuddy.subscriber.IdentifierType).NEO_ID)}" value="NEO_ID">NeoID</option>
+      <option th:unless="${me.identifier(T(com.neobuddy.subscriber.IdentifierType).REG_NO)}" value="REG_NO">Registration number</option>
+      <option th:unless="${me.identifier(T(com.neobuddy.subscriber.IdentifierType).COLLEGE_EMAIL)}" value="COLLEGE_EMAIL">College email</option>
+    </select>
+    <input name="value" required maxlength="320" autocomplete="off" spellcheck="false" aria-label="Value">
+    <button class="button" type="submit">Add</button>
+  </form>
+</section>
+</body>
+</html>

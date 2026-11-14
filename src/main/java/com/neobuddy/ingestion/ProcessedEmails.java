@@ -1,7 +1,9 @@
 package com.neobuddy.ingestion;
 
 import com.neobuddy.ingestion.source.ProcessedEmailStore;
+import java.time.Instant;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,17 @@ public class ProcessedEmails {
   @Transactional(readOnly = true)
   public Optional<EmailSummary> find(String rfcMessageId) {
     return store.find(rfcMessageId);
+  }
+
+  /**
+   * Records the synthetic email a test alert is about. It is flagged as a test, so it never counts
+   * as placement mail.
+   *
+   * @return its Message-ID
+   */
+  @Transactional
+  public String recordTestEmail(UUID collegeId, String subject, Instant receivedAt) {
+    return store.insertTest(collegeId, subject, receivedAt);
   }
 
   /**

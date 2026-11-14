@@ -27,7 +27,7 @@ env:
   AWS_REGION: ap-south-1
 
 jobs:
-  deploy:
+  config:
     # workflow_run fires for every CI run on main, including failed ones and pull requests whose
     # head branch is called main; only a successful CI run of a push to main deploys.
     if: >-
@@ -37,6 +37,39 @@ jobs:
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      configured: ${{ steps.config.outputs.configured }}
+    env:
+      ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      INSTANCE_ID: ${{ vars.AWS_INSTANCE_ID }}
+      REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
+      DOMAIN: ${{ vars.NEOBUDDY_DOMAIN }}
+    steps:
+      # Until the AWS side exists (deploy/README.md) none of the variables is set: skip quietly
+      # instead of failing every push to main. Only a half-done setup is an error.
+      - name: Check the repository variables
+        id: config
+        run: |
+          missing=()
+          [ -n "$ROLE_ARN" ] || missing+=("AWS_DEPLOY_ROLE_ARN")
+          [ -n "$INSTANCE_ID" ] || missing+=("AWS_INSTANCE_ID")
+          [ -n "$REPOSITORY_URL" ] || missing+=("ECR_REPOSITORY_URL")
+          [ -n "$DOMAIN" ] || missing+=("NEOBUDDY_DOMAIN")
+          if [ ${#missing[@]} -eq 4 ]; then
+            echo "::notice::Deploy skipped: no repository variables set yet (deploy/README.md, section 5)."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          elif [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Repository variables missing (deploy/README.md, section 5): ${missing[*]}"
+            exit 1
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: config
+    if: needs.config.outputs.configured == 'true'
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
@@ -44,17 +77,6 @@ jobs:
       REPOSITORY_URL: ${{ vars.ECR_REPOSITORY_URL }}
       DOMAIN: ${{ vars.NEOBUDDY_DOMAIN }}
     steps:
-      - name: Check the repository variables
-        run: |
-          missing=()
-          for name in ROLE_ARN INSTANCE_ID REPOSITORY_URL DOMAIN; do
-            [ -n "${!name}" ] || missing+=("$name")
-          done
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "::error::Repository variables missing (see deploy/README.md): ${missing[*]}"
-            exit 1
-          fi
-
       - uses: actions/checkout@v5
         with:
           # The commit CI tested, not whatever main points to by now.

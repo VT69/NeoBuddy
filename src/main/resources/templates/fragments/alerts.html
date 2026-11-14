@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<section th:fragment="alerts" id="alerts" class="card"
+         hx-get="/api/v1/me/alerts" hx-trigger="every 30s" hx-swap="outerHTML">
+  <h2>Your last alerts</h2>
+  <p th:if="${#lists.isEmpty(alerts.items)}" class="muted">Nothing yet. When a placement email mentions you, it shows here.</p>
+  <ul class="alerts">
+    <li th:each="alert : ${alerts.items}" th:class="|alert ${alert.test ? 'test' : #strings.toLowerCase(alert.eventType)}|">
+      <div class="alert-head">
+        <strong th:text="${alert.title}">Shortlisted: Example Corp</strong>
+        <span class="badge" th:if="${alert.test}">Test</span>
+      </div>
+      <p class="muted" th:text="${alert.receivedAtIst}">13 Nov 2026, 4:05 PM IST</p>
+      <pre class="snippet" th:if="${alert.snippet != null and !alert.test}" th:text="${alert.snippet}">N1B7J5V6 | Tara | 10:30</pre>
+      <ul class="deliveries">
+        <li th:each="delivery : ${alert.deliveries}" th:class="|chip ${delivery.css()}|" th:text="${delivery.label()}">Push: sent</li>
+        <li th:if="${#lists.isEmpty(alert.deliveries)}" class="chip">No channel was on</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+</body>
+</html>

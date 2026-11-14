@@ -25,12 +25,16 @@ class AlertRenderer {
       DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a", Locale.ENGLISH).withZone(IST);
   private static final String MAILBOX_SEARCH = "https://mail.google.com/mail/u/0/#search/";
   private static final int MAX_HEADLINE_SUBJECT = 120;
+  static final String TEST_HEADLINE = "Test alert: NeoBuddy can reach you here";
   private static final String NO_SNIPPET = "Your identifier appears in this email.";
   private static final String WHY =
       "You get this because one of your identifiers appears in a placement email.";
 
   /** "Shortlisted: Company", "Offer: Company" or "You're mentioned: subject". Always one line. */
   String headline(Alert alert) {
+    if (alert.test()) {
+      return TEST_HEADLINE;
+    }
     String subject = oneLine(alert.subject());
     String company = oneLine(alert.company());
     String about = !company.isEmpty() ? company : subject;
@@ -51,6 +55,10 @@ class AlertRenderer {
 
   /** Opens Gmail's search for exactly this email, in whichever mailbox the reader is signed in. */
   String mailboxLink(Alert alert) {
+    if (alert.test()) {
+      // A test is about no real email, so there is nothing to find.
+      return null;
+    }
     String id = alert.rfcMessageId().strip();
     if (id.startsWith("<") && id.endsWith(">")) {
       id = id.substring(1, id.length() - 1);
@@ -65,11 +73,13 @@ class AlertRenderer {
     return new NtfyMessage(
         headline(alert),
         body,
-        switch (alert.eventType()) {
-          case OFFER -> "tada";
-          case SHORTLIST -> "clipboard";
-          case OTHER -> "bell";
-        },
+        alert.test()
+            ? "white_check_mark"
+            : switch (alert.eventType()) {
+              case OFFER -> "tada";
+              case SHORTLIST -> "clipboard";
+              case OTHER -> "bell";
+            },
         alert.eventType() == EventType.OFFER ? "high" : "default",
         mailboxLink(alert));
   }
@@ -87,7 +97,7 @@ class AlertRenderer {
             snippet,
             "",
             received,
-            "Find the email in your mailbox: " + link,
+            link == null ? "" : "Find the email in your mailbox: " + link,
             "",
             WHY,
             "NeoBuddy");
@@ -103,9 +113,9 @@ class AlertRenderer {
             + "<p>"
             + escape(received)
             + "</p>"
-            + "<p><a href=\""
-            + escape(link)
-            + "\">Find the email in your mailbox</a></p>"
+            + (link == null
+                ? ""
+                : "<p><a href=\"" + escape(link) + "\">Find the email in your mailbox</a></p>")
             + "<p style=\"font-size:12px;color:#777\">"
             + escape(WHY)
             + "<br>NeoBuddy</p>"

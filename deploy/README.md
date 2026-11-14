@@ -121,6 +121,9 @@ put NEOBUDDY_ENCRYPTION_KEY
 | `NEOBUDDY_ENCRYPTION_KEY` | yes | `openssl rand -base64 32`. **Keep a copy outside AWS**: a restored backup is unreadable without the key it was written with. |
 | `NEOBUDDY_DOMAIN` | yes | The domain, e.g. `neobuddy.example.com` (read by Caddy) |
 | `NEOBUDDY_SES_FROM` | yes | Sender on the verified domain, e.g. `NeoBuddy <alerts@neobuddy.example.com>` |
+| `NEOBUDDY_GOOGLE_CLIENT_ID` | yes | Client id of the student sign-in client (Google Cloud project `neobuddy-login`, type "Web application", scopes `openid email profile`, redirect URI `https://<domain>/login/oauth2/code/google`) |
+| `NEOBUDDY_GOOGLE_CLIENT_SECRET` | yes | Its secret |
+| `NEOBUDDY_CONTACT_EMAIL` | no | Address shown on the privacy policy and terms for questions and deletion requests |
 | `NEOBUDDY_GMAIL_CLIENT_ID` | yes | OAuth client of the Google Cloud project (README, "Connect a source inbox") |
 | `NEOBUDDY_GMAIL_CLIENT_SECRET` | yes | Its secret |
 | `NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG` | yes | e.g. `my-college` |
@@ -137,7 +140,8 @@ put NEOBUDDY_ENCRYPTION_KEY
 | `NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN` | yes | From `./gradlew authorizeSource --console=plain` on your machine |
 | `NEOBUDDY_NTFY_BASE_URL` | no | Defaults to `https://ntfy.sh` |
 
-The deploy fails, naming what is missing, when one of the first four is absent. A changed
+The deploy fails, naming what is missing, when `DB_PASSWORD`, `NEOBUDDY_ENCRYPTION_KEY`,
+`NEOBUDDY_DOMAIN`, `NEOBUDDY_SES_FROM` or one of the two `NEOBUDDY_GOOGLE_CLIENT_*` is absent. A changed
 parameter takes effect at the next deploy (or a re-run of the last one, section 6).
 
 ## 5. Connect GitHub
@@ -147,7 +151,8 @@ create the four that `terraform output github_repository_variables` prints:
 `AWS_DEPLOY_ROLE_ARN`, `AWS_INSTANCE_ID`, `ECR_REPOSITORY_URL`, `NEOBUDDY_DOMAIN`.
 
 The deploy role trusts only workflows running on `main` of this repository; pull requests and
-other branches cannot assume it.
+other branches cannot assume it. Until the variables exist the Deploy workflow skips itself with
+a notice instead of failing; with only some of them set it fails and names the missing ones.
 
 ## 6. Deploy
 

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Placement alerts')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page">
+  <p class="notice ok" th:if="${param.deleted}" role="status">Your account and everything in it are deleted.</p>
+  <section class="hero">
+    <h1>Never miss your name on a shortlist.</h1>
+    <p class="lead">Placement emails bring sheets with hundreds of rows. NeoBuddy reads every one and tells you, on your phone, when your NeoID is in it.</p>
+    <a th:unless="${signedIn}" class="button primary big" th:href="@{/oauth2/authorization/google}">Sign in with your college Google account</a>
+    <a th:if="${signedIn}" class="button primary big" th:href="@{/dashboard}">Open your dashboard</a>
+  </section>
+
+  <section class="card">
+    <h2>How it works</h2>
+    <ol class="steps">
+      <li><strong>Sign in</strong> with your college Google account. Only students of colleges on NeoBuddy can join.</li>
+      <li><strong>Add your NeoID</strong> (and, if you like, your registration number and college email).</li>
+      <li><strong>Pick where to be told</strong>: a push notification through the free ntfy app, an email, or both.</li>
+    </ol>
+    <p>When a shortlist or offer email mentions you, you get an alert within minutes with your own row: company, round, slot.</p>
+  </section>
+
+  <section class="card">
+    <h2>Your privacy, in short</h2>
+    <ul>
+      <li>We never ask for access to your mailbox. NeoBuddy reads the shared placement inbox only.</li>
+      <li>We keep your identifiers, where to alert you, and your own matched row, nothing from anyone else.</li>
+      <li>Your row is deleted after 180 days. Deleting your account removes everything at once.</li>
+    </ul>
+    <p><a th:href="@{/privacy}">Read the privacy policy</a></p>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

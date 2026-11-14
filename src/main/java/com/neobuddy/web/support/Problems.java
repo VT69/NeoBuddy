@@ -128,6 +128,12 @@ public final class Problems {
                         "Identifier required",
                         "Add your NeoID before sending a test alert.");
               };
+          case DiscordUnavailableException e ->
+              problem(
+                  HttpStatus.SERVICE_UNAVAILABLE,
+                  "discord-unavailable",
+                  "Discord not available",
+                  "Discord alerts are not available yet.");
           case SubscriberNotFoundException e ->
               problem(HttpStatus.NOT_FOUND, "not-found", "Not found", e.getMessage() + ".");
           case TypeMismatchException e ->

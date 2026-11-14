@@ -11,10 +11,10 @@
     <ul>
       <li>Your name and college email from Google.</li>
       <li>The identifiers you add: NeoID, and if you choose, registration number and college email.</li>
-      <li>Where to alert you: your ntfy topic and your email address, stored encrypted.</li>
+      <li>Where to alert you: your ntfy topic, your email address and, if you link it, your Discord user id, stored encrypted.</li>
       <li>For each placement email that mentions you: the company, the date and your own row from the sheet. Your row is deleted after 180 days.</li>
     </ul>
-    <p>Alerts pass through the services that deliver them: ntfy.sh for push and Amazon SES for email. You can pause alerts or delete your account at any time.</p>
+    <p>Alerts pass through the services that deliver them: ntfy.sh for push, Amazon SES for email and Discord for direct messages. You can pause alerts or delete your account at any time.</p>
   </section>
   <p class="notice error" th:if="${error}" th:text="${error}" role="alert"></p>
   <form th:action="@{/consent}" method="post" class="stack">

@@ -22,3 +22,6 @@ neobuddy:
     email:
       # Nothing leaves the machine; tests that need SES replace its client with a mock.
       provider: log
+  discord:
+    # No bot in tests; Discord tests build their pieces with mocked JDA objects.
+    token: ""

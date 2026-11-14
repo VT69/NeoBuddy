@@ -76,7 +76,7 @@ deploy. `terraform test` checks the configuration offline (AWS is mocked); CI ru
 
 The instance is protected against replacement and termination, because the database lives on its
 root volume: Terraform ignores newer AMIs and changed user-data, `terraform destroy` refuses, and
-termination protection is on. See section 9 for moving to a new instance on purpose.
+termination protection is on. See section 10 for moving to a new instance on purpose.
 
 ## 3. DNS and SES
 
@@ -139,6 +139,10 @@ put NEOBUDDY_ENCRYPTION_KEY
 | `NEOBUDDY_BOOTSTRAP_SOURCE_EMAIL` | yes | The inbox placement mail is read from |
 | `NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN` | yes | From `./gradlew authorizeSource --console=plain` on your machine |
 | `NEOBUDDY_NTFY_BASE_URL` | no | Defaults to `https://ntfy.sh` |
+| `DISCORD_TOKEN` | for Discord | The bot's token (Developer Portal, Bot, Reset Token). Without it the Discord module is off: no bot, no "Connect Discord", no #ops alerts |
+| `NEOBUDDY_DISCORD_GUILD_ID` | with the token | The NeoBuddy server's id (Developer Mode on, right-click the server, Copy Server ID) |
+| `NEOBUDDY_DISCORD_OPS_CHANNEL_ID` | with the token | The #ops channel's id, where admin alerts go |
+| `NEOBUDDY_DISCORD_INVITE_URL` | no | A permanent invite to the server, shown next to the /link code |
 
 The deploy fails, naming what is missing, when `DB_PASSWORD`, `NEOBUDDY_ENCRYPTION_KEY`,
 `NEOBUDDY_DOMAIN`, `NEOBUDDY_SES_FROM` or one of the two `NEOBUDDY_GOOGLE_CLIENT_*` is absent. A changed
@@ -224,7 +228,22 @@ curl -fsS http://127.0.0.1:8080/actuator/health
 The restored data is only readable with the `NEOBUDDY_ENCRYPTION_KEY` that was in use when the
 backup was taken.
 
-## 9. Everyday operations
+## 9. Discord
+
+With `DISCORD_TOKEN` and the two ids set, the bot connects at startup (in the background: a
+Discord outage never stops NeoBuddy) and registers `/link`, `/status`, `/pause`, `/resume` and
+`/unlink` in the NeoBuddy server. It asks for no privileged intents and reads no messages; it
+needs the `bot` and `applications.commands` scopes, and in #ops the permission to send messages.
+
+Admin alerts in #ops: a source inbox that lost Gmail access (every time), more than 5 deliveries
+failed for good within an hour (once per hour), and emails that could not be processed (at most
+one post per 10 minutes, with a count of the rest).
+
+To check #ops without waiting for a real failure, revoke the source inbox's access at
+<https://myaccount.google.com/permissions>; the next poll marks it AUTH_EXPIRED and posts. Then
+reconnect it (section 4, `NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN`).
+
+## 10. Everyday operations
 
 ```bash
 aws logs tail /neobuddy/prod --follow --region ap-south-1    # all containers

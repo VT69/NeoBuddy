@@ -58,6 +58,24 @@ public class ChannelDirectory {
         .map(channel -> new ChannelAddress(channel.getAddress()));
   }
 
+  /**
+   * The channel of this type whose address is the given one, verified or not. Addresses are
+   * encrypted with a random IV, so this decrypts every channel of the type and compares; fine for
+   * the Discord channels of one deployment, not for hot paths.
+   */
+  @Transactional(readOnly = true)
+  public Optional<ChannelTarget> findByAddress(ChannelType type, String address) {
+    return channels.findByType(type).stream()
+        .filter(channel -> channel.getAddress().equals(address))
+        .findFirst()
+        .map(channel ->
+            new ChannelTarget(
+                channel.getId(),
+                channel.getUserId(),
+                channel.getType(),
+                new ChannelAddress(channel.getAddress())));
+  }
+
   private static boolean isDeliverable(Channel channel) {
     return channel.isVerified() && channel.isEnabled();
   }

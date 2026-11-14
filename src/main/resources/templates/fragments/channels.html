@@ -64,8 +64,37 @@
     </details>
   </article>
 
-  <article class="channel muted">
-    <header class="channel-head"><h3>Discord</h3><span class="badge off">Coming soon</span></header>
+  <!-- Discord direct messages -->
+  <article class="channel" th:classappend="${discordEnabled} ? '' : 'muted'"
+           th:with="discord=${me.channel(T(com.neobuddy.subscriber.ChannelType).DISCORD)}">
+    <header class="channel-head">
+      <h3>Discord</h3>
+      <span th:unless="${discordEnabled}" class="badge off">Coming soon</span>
+      <span th:if="${discordEnabled and discord != null}" th:class="|badge ${discord.verified and discord.enabled ? 'on' : 'off'}|" th:text="${discord.state()}">On</span>
+    </header>
+    <th:block th:if="${discordEnabled}">
+      <p th:if="${discord != null and discordDmsClosed}" class="notice warn">
+        Discord did not let NeoBuddy message you. In the NeoBuddy server open <strong>Privacy Settings</strong>
+        and switch on <strong>Direct Messages</strong> (allow DMs from server members), then send a test.
+      </p>
+      <div th:if="${discord != null and discord.verified}" class="row">
+        <button class="button" type="button" th:hx-post="@{/api/v1/me/channels/{id}/test(id=${discord.id})}" hx-target="#flash" hx-swap="innerHTML" th:disabled="${!discord.enabled}">Send test</button>
+        <button class="button" type="button" th:hx-patch="@{/api/v1/me/channels/{id}(id=${discord.id})}" th:hx-vals="|{&quot;enabled&quot;: &quot;${!discord.enabled}&quot;}|" hx-target="#channels" hx-swap="outerHTML" th:text="${discord.enabled} ? 'Pause' : 'Resume'">Pause</button>
+      </div>
+      <p th:if="${discord != null and discord.verified}" class="muted">To disconnect, run <code>/unlink</code> in the NeoBuddy server.</p>
+      <div th:if="${discordLink}" class="setup">
+        <ol class="steps">
+          <li th:if="${discordLink.inviteUrl}">Join the <a th:href="${discordLink.inviteUrl}" rel="noopener" target="_blank">NeoBuddy server</a>.</li>
+          <li>In any channel there, type <code th:text="${discordLink.command}">/link code:ABCD-EFGH</code> and send it.</li>
+          <li>Come back here and reload the page.</li>
+        </ol>
+        <p class="topic">Your code: <code th:text="${discordLink.code}">ABCD-EFGH</code> <span class="muted">(works once, for 10 minutes)</span></p>
+      </div>
+      <div th:if="${discord == null and discordLink == null}">
+        <p>Get alerts as a direct message from the NeoBuddy bot.</p>
+        <button class="button primary" type="button" hx-post="/api/v1/me/channels/discord/link-code" hx-target="#channels" hx-swap="outerHTML">Connect Discord</button>
+      </div>
+    </th:block>
   </article>
 </section>
 </body>

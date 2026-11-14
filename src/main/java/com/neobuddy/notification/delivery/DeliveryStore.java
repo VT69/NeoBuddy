@@ -128,7 +128,14 @@ class DeliveryStore {
   }
 
   /** One delivery as the alert history shows it. */
-  record Row(UUID id, UUID matchId, UUID channelId, String status, int attempts, Instant sentAt) {}
+  record Row(
+      UUID id,
+      UUID matchId,
+      UUID channelId,
+      String status,
+      int attempts,
+      Instant sentAt,
+      String lastError) {}
 
   /** Every delivery of the given matches. */
   List<Row> ofMatches(List<UUID> matchIds) {
@@ -136,7 +143,7 @@ class DeliveryStore {
       return List.of();
     }
     return jdbc.query(
-        "select id, match_id, channel_id, status, attempts, sent_at from delivery"
+        "select id, match_id, channel_id, status, attempts, sent_at, last_error from delivery"
             + " where match_id = any (?)",
         (rs, row) ->
             new Row(
@@ -145,7 +152,8 @@ class DeliveryStore {
                 rs.getObject("channel_id", UUID.class),
                 rs.getString("status"),
                 rs.getInt("attempts"),
-                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant()),
+                rs.getTimestamp("sent_at") == null ? null : rs.getTimestamp("sent_at").toInstant(),
+                rs.getString("last_error")),
         (Object) matchIds.toArray(UUID[]::new));
   }
 

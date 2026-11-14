@@ -97,6 +97,14 @@ neobuddy:
         limit-for-period: 1
         refresh-period: PT1S
         timeout: PT10S
+  discord:
+    # Bot token (SSM DISCORD_TOKEN). Empty switches the whole Discord module off (local, tests).
+    token: ${DISCORD_TOKEN:}
+    # The NeoBuddy server and its #ops channel (right-click, Copy ID). Required with a token.
+    guild-id: ${NEOBUDDY_DISCORD_GUILD_ID:}
+    ops-channel-id: ${NEOBUDDY_DISCORD_OPS_CHANNEL_ID:}
+    # Shown next to a /link code, e.g. https://discord.gg/abc123
+    invite-url: ${NEOBUDDY_DISCORD_INVITE_URL:}
   web:
     # Shown on the privacy policy and terms as the address for questions and deletion requests.
     contact-email: ${NEOBUDDY_CONTACT_EMAIL:}

@@ -59,6 +59,11 @@ dependencies {
     implementation(libs.bucket4j.core)
     implementation(libs.zxing.core)
 
+    // Discord bot (gateway, slash commands, DMs). Audio is never used, so its codec is left out.
+    implementation(libs.jda) {
+        exclude(group = "club.minnced", module = "opus-java")
+    }
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 

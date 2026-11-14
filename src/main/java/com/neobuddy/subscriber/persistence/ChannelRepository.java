@@ -13,4 +13,6 @@ public interface ChannelRepository extends JpaRepository<Channel, UUID> {
   Optional<Channel> findByIdAndUserId(UUID id, UUID userId);
 
   Optional<Channel> findByUserIdAndType(UUID userId, ChannelType type);
+
+  List<Channel> findByType(ChannelType type);
 }

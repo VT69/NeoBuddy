@@ -24,6 +24,8 @@ public class RateLimiter {
     OTP_SEND(3, Duration.ofHours(1)),
     /** Test alerts, per user. */
     TEST_ALERT(5, Duration.ofHours(1)),
+    /** Discord link codes, per user. */
+    DISCORD_LINK_CODE(5, Duration.ofHours(1)),
     /** "Request your college" submissions, per client address. */
     COLLEGE_REQUEST(5, Duration.ofHours(1));
 

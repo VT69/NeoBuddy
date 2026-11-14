@@ -96,6 +96,21 @@ public final class MeViews {
 
   public record TestAlertQueued(UUID deliveryId, String message) {}
 
+  /**
+   * A code for {@code /link}, shown once.
+   *
+   * @param code as shown, e.g. {@code ABCD-EFGH}
+   * @param command the whole command to type in Discord
+   * @param inviteUrl the NeoBuddy server's invite; null if none is configured
+   */
+  public record DiscordLink(String code, String command, Instant expiresAt, String inviteUrl) {
+
+    @Override
+    public String toString() {
+      return "DiscordLink[expiresAt=" + expiresAt + "]";
+    }
+  }
+
   public record Alerts(int page, int size, List<Alert> items) {}
 
   /** One alert of the history, formatted for a person. */
@@ -139,12 +154,26 @@ public final class MeViews {
     }
   }
 
+  /**
+   * @param lastError short technical reason of the last failure, e.g. {@code DISCORD_DMS_CLOSED}
+   */
   public record Delivery(
-      ChannelType channelType, DeliveryStatus status, int attempts, Instant sentAt) {
+      ChannelType channelType,
+      DeliveryStatus status,
+      int attempts,
+      Instant sentAt,
+      String lastError) {
+
+    /** Discord refused the DM because the student does not accept DMs from server members. */
+    public static final String DISCORD_DMS_CLOSED = "DISCORD_DMS_CLOSED";
 
     static Delivery of(AlertSummary.Delivery delivery) {
       return new Delivery(
-          delivery.channelType(), delivery.status(), delivery.attempts(), delivery.sentAt());
+          delivery.channelType(),
+          delivery.status(),
+          delivery.attempts(),
+          delivery.sentAt(),
+          delivery.lastError());
     }
 
     public String label() {
@@ -161,7 +190,7 @@ public final class MeViews {
             case PENDING -> "sending";
             case RETRY -> "retrying";
             case SENT -> "sent";
-            case DEAD -> "failed";
+            case DEAD -> DISCORD_DMS_CLOSED.equals(lastError) ? "DMs closed" : "failed";
           };
       return channel + ": " + state;
     }

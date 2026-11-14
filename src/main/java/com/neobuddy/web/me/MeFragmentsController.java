@@ -112,6 +112,14 @@ class MeFragmentsController {
     return channels(user, model, "Push is set up. Subscribe to your topic in the ntfy app.");
   }
 
+  @PostMapping("/channels/discord/link-code")
+  String discordLinkCode(
+      @AuthenticationPrincipal NeoBuddyUser user, Model model, HttpServletResponse response) {
+    model.addAttribute("discordLink", me.createDiscordLinkCode(user.requireUserId()));
+    response.setStatus(HttpStatus.CREATED.value());
+    return channels(user, model, null);
+  }
+
   @PatchMapping("/channels/{id}")
   String patchChannel(
       @AuthenticationPrincipal NeoBuddyUser user,
@@ -155,6 +163,8 @@ class MeFragmentsController {
     if (!model.containsAttribute("ntfy")) {
       model.addAttribute("ntfy", me.existingNtfySetup(current));
     }
+    model.addAttribute("discordEnabled", me.discordEnabled());
+    model.addAttribute("discordDmsClosed", me.discordDmsClosed(me.alerts(current.id(), 0)));
     model.addAttribute("message", message);
     return CHANNELS;
   }

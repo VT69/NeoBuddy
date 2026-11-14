@@ -127,6 +127,54 @@ class DeliveryStore {
         == 1;
   }
 
+  /** A dead delivery as the admin console lists it. */
+  record DeadRow(UUID id, UUID matchId, UUID channelId, int attempts, String lastError) {}
+
+  /** Dead deliveries, the most recently tried first. */
+  List<DeadRow> dead(int offset, int limit) {
+    return jdbc.query(
+        "select id, match_id, channel_id, attempts, last_error from delivery"
+            + " where status = 'DEAD' order by next_attempt_at desc, id limit ? offset ?",
+        (rs, row) ->
+            new DeadRow(
+                rs.getObject("id", UUID.class),
+                rs.getObject("match_id", UUID.class),
+                rs.getObject("channel_id", UUID.class),
+                rs.getInt("attempts"),
+                rs.getString("last_error")),
+        limit,
+        offset);
+  }
+
+  int countDead() {
+    Integer count =
+        jdbc.queryForObject("select count(*) from delivery where status = 'DEAD'", Integer.class);
+    return count == null ? 0 : count;
+  }
+
+  /**
+   * Gives a dead delivery a fresh set of attempts, due now.
+   *
+   * @return false if it is not DEAD (any more)
+   */
+  boolean revive(UUID id, Instant now) {
+    return jdbc.update(
+            "update delivery set status = 'PENDING', attempts = 0, next_attempt_at = ?,"
+                + " last_error = null where id = ? and status = 'DEAD'",
+            timestamp(now),
+            id)
+        == 1;
+  }
+
+  /**
+   * @return false if it is not DEAD (any more)
+   */
+  boolean discard(UUID id) {
+    return jdbc.update(
+            "update delivery set status = 'DISCARDED' where id = ? and status = 'DEAD'", id)
+        == 1;
+  }
+
   /** One delivery as the alert history shows it. */
   record Row(
       UUID id,

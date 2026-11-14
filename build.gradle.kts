@@ -64,6 +64,10 @@ dependencies {
         exclude(group = "club.minnced", module = "opus-java")
     }
 
+    // Observability: Prometheus-format metrics, JSON logs in production
+    implementation(libs.micrometer.registry.prometheus)
+    implementation(libs.logstash.logback.encoder)
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 

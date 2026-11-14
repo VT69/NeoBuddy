@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Admin')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>Admin</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+
+  <div class="stats">
+    <div class="stat" th:each="s : ${statuses}">
+      <strong th:text="${collegeCounts.get(s) ?: 0}">0</strong>
+      <span th:text="|${#strings.capitalize(#strings.toLowerCase(s.name()))} colleges|">Pilot colleges</span>
+    </div>
+    <a class="stat" th:href="@{/admin/sources}" th:classappend="${sourcesNeedingAttention > 0} ? 'attention'">
+      <strong th:text="${sourcesNeedingAttention}">0</strong> sources need attention
+    </a>
+    <a class="stat" th:href="@{/admin/deliveries}" th:classappend="${deadCount > 0} ? 'attention'">
+      <strong th:text="${deadCount}">0</strong> dead deliveries
+    </a>
+    <a class="stat" th:href="@{/admin/requests}">
+      <strong th:text="${requestCount}">0</strong> college requests
+    </a>
+  </div>
+
+  <section class="card">
+    <h2>Alert channels</h2>
+    <p class="hint">From the outcome of real sends since this instance started. Degraded after 3 retryable failures in a row.</p>
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Channel</th><th>Provider</th><th>State</th><th>Failures in a row</th><th>Last success</th><th>Last failure</th></tr></thead>
+        <tbody>
+        <tr th:each="c : ${channels}">
+          <td th:text="${c.type}">NTFY</td>
+          <td th:text="${c.provider}">ntfy</td>
+          <td><span th:replace="~{fragments/admin :: health(${c.state.name()}, ${c.state.name() == 'DEGRADED'})}"></span></td>
+          <td class="num" th:text="${c.consecutiveFailures}">0</td>
+          <td th:text="${@adminTime.ago(c.lastSuccess)}">never</td>
+          <td><span th:text="${@adminTime.ago(c.lastFailure)}">never</span> <code th:if="${c.lastFailureReason}" th:text="${c.lastFailureReason}">HTTP 503</code></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Source inboxes</h2>
+    <p th:if="${#lists.isEmpty(sources)}" class="muted">No source inbox is connected yet.</p>
+    <div class="table-wrap" th:unless="${#lists.isEmpty(sources)}">
+      <table class="data">
+        <thead><tr><th>College</th><th>Inbox</th><th>State</th><th>Last sync</th></tr></thead>
+        <tbody>
+        <tr th:each="s : ${sources}">
+          <td th:text="${s.collegeSlug}">slug</td>
+          <td th:text="${s.email}">inbox@college.edu</td>
+          <td><span th:replace="~{fragments/admin :: health(${s.health.name()}, ${s.health.needsAttention()})}"></span></td>
+          <td th:text="${@adminTime.ago(s.lastSyncedAt)}">2 min ago</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recently failed emails</h2>
+    <p th:if="${#lists.isEmpty(failedEmails)}" class="muted">None.</p>
+    <div class="table-wrap" th:unless="${#lists.isEmpty(failedEmails)}">
+      <table class="data">
+        <thead><tr><th>Received</th><th>College</th><th>Subject</th><th>Error</th></tr></thead>
+        <tbody>
+        <tr th:each="e : ${failedEmails}">
+          <td th:text="${@adminTime.format(e.receivedAt)}">time</td>
+          <td th:text="${slugs.get(e.collegeId)}">slug</td>
+          <td th:text="${e.subject}">Subject</td>
+          <td><code th:text="${e.error}">IOException</code></td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+    <p><a th:href="@{/admin/emails(status='FAILED')}">All failed emails</a></p>
+  </section>
+
+  <p class="hint">Raw health with details: <a th:href="@{/actuator/health/ops}">/actuator/health/ops</a>. Metrics: <a th:href="@{/actuator/prometheus}">/actuator/prometheus</a>.</p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

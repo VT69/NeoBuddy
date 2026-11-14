@@ -70,8 +70,9 @@ terraform output
 ```
 
 It creates: the ECR repository, the instance with its Elastic IP, security group and role, the
-backup bucket, the log group, the GitHub OIDC provider and deploy role, and the SES domain
-identity. The instance boots, installs Docker and the compose plugin, and waits for its first
+backup bucket, the log group, the GitHub OIDC provider and deploy role, the SES domain
+identity, and the alarms of section 11 with their SNS topics (`alarm_email` in
+`terraform.tfvars`; confirm the two subscription emails AWS sends). The instance boots, installs Docker and the compose plugin, and waits for its first
 deploy. `terraform test` checks the configuration offline (AWS is mocked); CI runs it.
 
 The instance is protected against replacement and termination, because the database lives on its
@@ -126,6 +127,8 @@ put NEOBUDDY_ENCRYPTION_KEY
 | `NEOBUDDY_CONTACT_EMAIL` | no | Address shown on the privacy policy and terms for questions and deletion requests |
 | `NEOBUDDY_GMAIL_CLIENT_ID` | yes | OAuth client of the Google Cloud project (README, "Connect a source inbox") |
 | `NEOBUDDY_GMAIL_CLIENT_SECRET` | yes | Its secret |
+| `NEOBUDDY_GMAIL_WEB_CLIENT_ID` | for invite links | OAuth client of type "Web application" in the same project, redirect URI `https://<domain>/sources/connect/callback`. Without it, inboxes can only be added with `authorizeSource` |
+| `NEOBUDDY_GMAIL_WEB_CLIENT_SECRET` | with the id | Its secret |
 | `NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG` | yes | e.g. `my-college` |
 | `NEOBUDDY_BOOTSTRAP_COLLEGE_NAME` | no | Display name |
 | `NEOBUDDY_BOOTSTRAP_COLLEGE_EMAIL_DOMAINS` | yes | Comma-separated sign-in domains |
@@ -264,3 +267,43 @@ changed user-data): take a backup (section 8), then in `ec2.tf` temporarily remo
 it, so DNS stays as it is. Changing only the instance type, within the same architecture (for
 example `t4g.small` to `t4g.medium`), does not need this: Terraform stops and starts the instance
 with its disk.
+
+## 11. Admin console, health and alarms
+
+**Admin console:** `https://<domain>/admin`, for accounts with `app_user.role = 'ADMIN'` (the
+bootstrap admin). Colleges (create, edit, status, classifier keyword overrides), college requests
+("Create college" prefills the form), source inboxes (state, last sync, cursor, invite links,
+disconnect), recent emails (headers and outcome only) with reprocessing by Message-ID, and dead
+deliveries (retry or discard). The same actions are under `/api/v1/admin`.
+
+**Onboarding a college:** create it as PILOT, create an invite link on Sources and send it to the
+campus lead, watch its first emails on Emails, then set it to ACTIVE.
+
+**Health:** `/actuator/health` is public and shows only `{"status": ...}`; it reports whether the
+app serves. Admins see every indicator at `/actuator/health/ops`: one per source inbox (DEGRADED
+when AUTH_EXPIRED or not polled for 10 minutes) and one per alert channel (DEGRADED after 3
+retryable failures in a row), plus the database and the Discord gateway. DEGRADED never makes
+the public status DOWN, so a lapsed inbox cannot fail a deploy. Prometheus metrics are at
+`/actuator/prometheus` (admins only; Caddy blocks it from outside): `emails_ingested_total`,
+`extraction_failures_total{type}`, `matches_total{event}`, `delivery_latency_seconds`,
+`deliveries_dead_total{channel}`, each tagged `college`.
+
+**Logs** are JSON in production (`SPRING_PROFILES_ACTIVE=prod`), one object per line with
+`rfcMessageId` and `collegeSlug` where they apply. Find one email's story:
+
+```bash
+aws logs filter-log-events --log-group-name /neobuddy/prod --region ap-south-1 \
+  --filter-pattern '{ $.rfcMessageId = "<message-id@example.com>" }'
+```
+
+**Alarms** (emailed through SNS; Terraform `alarms.tf`):
+
+| Alarm | Fires when | First look |
+| --- | --- | --- |
+| `neobuddy-prod-instance-status-check` | EC2 system or instance status check fails for 3 minutes | EC2 console; a failed system check usually clears with a stop and start |
+| `neobuddy-prod-health-check` (us-east-1) | Route 53 cannot get a 2xx from `https://<domain>/actuator/health` for 2 minutes | `/opt/neobuddy/compose.sh ps`, then the app's logs |
+| `neobuddy-prod-delivery-dead` | an alert went DEAD within 5 minutes | `/admin/deliveries`: the reason column says why |
+
+To test the health alarm: `sudo /opt/neobuddy/compose.sh stop app`, wait about 4 minutes for
+the email, then `sudo /opt/neobuddy/compose.sh start app` (an OK email follows).
+

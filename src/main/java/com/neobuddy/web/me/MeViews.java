@@ -190,13 +190,13 @@ public final class MeViews {
             case PENDING -> "sending";
             case RETRY -> "retrying";
             case SENT -> "sent";
-            case DEAD -> DISCORD_DMS_CLOSED.equals(lastError) ? "DMs closed" : "failed";
+            case DEAD, DISCARDED -> DISCORD_DMS_CLOSED.equals(lastError) ? "DMs closed" : "failed";
           };
       return channel + ": " + state;
     }
 
     public String css() {
-      return status.name().toLowerCase(Locale.ROOT);
+      return status == DeliveryStatus.DISCARDED ? "dead" : status.name().toLowerCase(Locale.ROOT);
     }
   }
 

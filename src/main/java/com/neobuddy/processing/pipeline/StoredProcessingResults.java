@@ -1,9 +1,16 @@
 package com.neobuddy.processing.pipeline;
 
 import com.neobuddy.ingestion.ProcessedEmails;
+import com.neobuddy.processing.EventType;
 import com.neobuddy.processing.MatchHit;
 import com.neobuddy.processing.ProcessingResult;
 import com.neobuddy.processing.ProcessingResultSink;
+import com.neobuddy.shared.observability.AfterCommit;
+import com.neobuddy.shared.observability.CollegeTags;
+import com.neobuddy.shared.observability.Metrics;
+import io.micrometer.core.instrument.MeterRegistry;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +34,18 @@ class StoredProcessingResults implements ProcessingResultSink {
   private final JdbcTemplate jdbc;
   private final ProcessedEmails processedEmails;
 
-  StoredProcessingResults(JdbcTemplate jdbc, ProcessedEmails processedEmails) {
+  private final MeterRegistry meters;
+  private final CollegeTags collegeTags;
+
+  StoredProcessingResults(
+      JdbcTemplate jdbc,
+      ProcessedEmails processedEmails,
+      MeterRegistry meters,
+      CollegeTags collegeTags) {
     this.jdbc = jdbc;
     this.processedEmails = processedEmails;
+    this.meters = meters;
+    this.collegeTags = collegeTags;
   }
 
   @Override
@@ -41,22 +57,36 @@ class StoredProcessingResults implements ProcessingResultSink {
       log.warn("Email {} was not ingested; its matches are not stored", messageId);
       return;
     }
+    Map<EventType, Integer> stored = new EnumMap<>(EventType.class);
     for (MatchHit hit : result.hits()) {
-      jdbc.update(
-          "insert into match_hit (id, user_id, email_id, identifier_id, event_type,"
-              + " context_snippet)"
-              + " select ?, ?, ?, ?, ?, ?"
-              + " where exists (select 1 from app_user where id = ?)"
-              + " and exists (select 1 from identifier where id = ?)"
-              + " on conflict (user_id, email_id) do nothing",
-          UUID.randomUUID(),
-          hit.userId(),
-          messageId,
-          hit.identifierId(),
-          hit.eventType().name(),
-          hit.contextSnippet(),
-          hit.userId(),
-          hit.identifierId());
+      int inserted =
+          jdbc.update(
+              "insert into match_hit (id, user_id, email_id, identifier_id, event_type,"
+                  + " context_snippet)"
+                  + " select ?, ?, ?, ?, ?, ?"
+                  + " where exists (select 1 from app_user where id = ?)"
+                  + " and exists (select 1 from identifier where id = ?)"
+                  + " on conflict (user_id, email_id) do nothing",
+              UUID.randomUUID(),
+              hit.userId(),
+              messageId,
+              hit.identifierId(),
+              hit.eventType().name(),
+              hit.contextSnippet(),
+              hit.userId(),
+              hit.identifierId());
+      if (inserted == 1) {
+        stored.merge(hit.eventType(), 1, Integer::sum);
+      }
+    }
+    // A replayed or reprocessed email adds only the matches that are new.
+    if (!stored.isEmpty()) {
+      String college = collegeTags.slugOf(result.collegeId());
+      AfterCommit.run(() ->
+          stored.forEach((event, count) ->
+              meters
+                  .counter(Metrics.MATCHES, Metrics.COLLEGE, college, "event", event.name())
+                  .increment(count)));
     }
     processedEmails.markProcessed(
         messageId,

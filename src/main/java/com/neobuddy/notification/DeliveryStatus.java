@@ -9,5 +9,7 @@ public enum DeliveryStatus {
   /** The channel accepted it. */
   SENT,
   /** Given up. */
-  DEAD
+  DEAD,
+  /** Was DEAD; an admin decided not to retry it. */
+  DISCARDED
 }

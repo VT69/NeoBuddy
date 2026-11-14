@@ -20,6 +20,7 @@ import com.neobuddy.processing.match.Matcher;
 import com.neobuddy.processing.match.Tokenizer;
 import com.neobuddy.shared.college.College;
 import com.neobuddy.shared.college.CollegeStatus;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -51,6 +52,7 @@ final class ProcessingFixture {
   final InMemoryIdentifierIndex index = new InMemoryIdentifierIndex(Optional.of(identifiers));
   final List<Object> publishedEvents = new ArrayList<>();
   final List<ProcessingResult> savedResults = new ArrayList<>();
+  final SimpleMeterRegistry meters = new SimpleMeterRegistry();
   final Matcher matcher;
   final ProcessingService service;
 
@@ -77,7 +79,8 @@ final class ProcessingFixture {
             TestClassifierRules.classifier(TestClassifierRules.shipped()),
             matcher,
             publishedEvents::add,
-            Optional.of(savedResults::add));
+            Optional.of(savedResults::add),
+            meters);
   }
 
   static College college(String slug) {

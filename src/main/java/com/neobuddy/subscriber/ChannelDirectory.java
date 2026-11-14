@@ -33,6 +33,12 @@ public class ChannelDirectory {
         .toList();
   }
 
+  /** The type of a channel, whatever its state; empty if it is gone. */
+  @Transactional(readOnly = true)
+  public Optional<ChannelType> typeOf(UUID channelId) {
+    return channels.findById(channelId).map(Channel::getType);
+  }
+
   /** The address of a channel; empty if it is gone, unverified or switched off. */
   @Transactional(readOnly = true)
   public Optional<ChannelTarget> target(UUID channelId) {

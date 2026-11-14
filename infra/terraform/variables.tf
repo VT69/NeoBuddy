@@ -75,3 +75,19 @@ variable "compose_version" {
     }
   }
 }
+
+variable "alarm_email" {
+  description = "Where CloudWatch alarms are emailed (SNS). AWS sends one confirmation email per topic (two); alarms reach you only after you confirm both."
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", var.alarm_email))
+    error_message = "alarm_email must be an email address."
+  }
+}
+
+variable "dead_delivery_alarm_threshold" {
+  description = "How many dead deliveries within 5 minutes raise the alarm."
+  type        = number
+  default     = 1
+}

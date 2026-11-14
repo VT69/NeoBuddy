@@ -18,6 +18,7 @@
   <nav th:if="${signedIn}" aria-label="Main">
     <a th:href="@{/dashboard}">Dashboard</a>
     <a th:href="@{/settings}">Settings</a>
+    <a th:if="${admin}" th:href="@{/admin}">Admin</a>
     <form th:action="@{/logout}" method="post" class="inline"><button class="link" type="submit">Sign out</button></form>
   </nav>
   <nav th:if="${pendingConsent}" aria-label="Main">

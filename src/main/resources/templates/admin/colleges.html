@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Colleges')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>Colleges</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+  <p><a class="button primary" th:href="@{/admin/colleges/new}">New college</a></p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Slug</th><th>Name</th><th>Status</th><th>Email domains</th><th>Senders</th><th>NeoID pattern</th><th>Overrides</th></tr></thead>
+      <tbody>
+      <tr th:each="c : ${colleges}">
+        <td><a th:href="@{/admin/colleges/{id}(id=${c.id})}" th:text="${c.slug}">slug</a></td>
+        <td th:text="${c.name}">Name</td>
+        <td th:text="${c.status}">PILOT</td>
+        <td th:text="${#strings.listJoin(c.allowedEmailDomains, ', ')}">college.edu</td>
+        <td th:text="${#strings.listJoin(c.senderAllowlist, ', ')}">@college.edu</td>
+        <td><code th:text="${c.neoIdPattern}">^[A-Z0-9]{8}$</code></td>
+        <td th:text="${c.classifierOverrides.isEmpty()} ? 'none' : 'yes'">none</td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

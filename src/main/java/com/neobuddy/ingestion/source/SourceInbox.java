@@ -45,22 +45,46 @@ public class SourceInbox {
   @Column(name = "last_synced_at")
   private Instant lastSyncedAt;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "oauth_client", nullable = false)
+  private OAuthClient oauthClient;
+
   protected SourceInbox() {}
 
   public SourceInbox(UUID collegeId, String email, String refreshToken) {
+    this(collegeId, email, refreshToken, OAuthClient.DESKTOP);
+  }
+
+  public SourceInbox(UUID collegeId, String email, String refreshToken, OAuthClient oauthClient) {
     this.id = UUID.randomUUID();
     this.collegeId = Objects.requireNonNull(collegeId, "collegeId");
     this.email = email.strip().toLowerCase(Locale.ROOT);
     this.refreshToken = Objects.requireNonNull(refreshToken, "refreshToken");
+    this.oauthClient = Objects.requireNonNull(oauthClient, "oauthClient");
     this.status = SourceStatus.ACTIVE;
   }
 
   /** A new token means the inbox was authorised again, so it is polled again. */
   public void reconnect(String newRefreshToken) {
-    if (!refreshToken.equals(newRefreshToken)) {
+    reconnect(newRefreshToken, oauthClient);
+  }
+
+  /** As {@link #reconnect(String)}, with a token issued by the given client. */
+  public void reconnect(String newRefreshToken, OAuthClient client) {
+    if (!refreshToken.equals(newRefreshToken) || status != SourceStatus.ACTIVE) {
       this.refreshToken = Objects.requireNonNull(newRefreshToken, "newRefreshToken");
+      this.oauthClient = Objects.requireNonNull(client, "client");
       this.status = SourceStatus.ACTIVE;
     }
+  }
+
+  /**
+   * Stops polling and forgets the refresh token. The row stays, because ingested emails point to
+   * it; connecting the inbox again reactivates it.
+   */
+  public void disconnect() {
+    this.refreshToken = "";
+    this.status = SourceStatus.DISABLED;
   }
 
   /** Moves the cursor forward; it never goes back. */
@@ -101,5 +125,9 @@ public class SourceInbox {
 
   public Instant getLastSyncedAt() {
     return lastSyncedAt;
+  }
+
+  public OAuthClient getOauthClient() {
+    return oauthClient;
   }
 }

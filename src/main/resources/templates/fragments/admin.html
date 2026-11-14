@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<nav th:fragment="nav" class="admin-nav" aria-label="Admin">
+  <a th:href="@{/admin}" th:classappend="${adminSection == 'overview'} ? 'current'">Overview</a>
+  <a th:href="@{/admin/colleges}" th:classappend="${adminSection == 'colleges'} ? 'current'">Colleges</a>
+  <a th:href="@{/admin/requests}" th:classappend="${adminSection == 'requests'} ? 'current'">Requests</a>
+  <a th:href="@{/admin/sources}" th:classappend="${adminSection == 'sources'} ? 'current'">Sources</a>
+  <a th:href="@{/admin/emails}" th:classappend="${adminSection == 'emails'} ? 'current'">Emails</a>
+  <a th:href="@{/admin/deliveries}" th:classappend="${adminSection == 'deliveries'} ? 'current'">Dead deliveries</a>
+</nav>
+<div th:fragment="messages">
+  <p class="notice ok" th:if="${notice}" th:text="${notice}" role="status"></p>
+  <ul class="notice error" th:if="${errors}" role="alert">
+    <li th:each="error : ${errors}" th:text="${error}">Error</li>
+  </ul>
+</div>
+<span th:fragment="health(state, attention)" th:class="|chip ${attention ? 'dead' : 'sent'}|" th:text="${state}">OK</span>
+</body>
+</html>

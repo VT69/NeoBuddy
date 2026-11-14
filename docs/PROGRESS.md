@@ -927,3 +927,191 @@ deploy, and has **not** been done. No schema change.
 - Keyed hash of the Discord id for lookups (schema change), before many students link.
 - `/link` attempt limits and the #ops throttles are per instance, in memory.
 - The "allow DMs" hint only appears after a DM failed; `/link` already warns at linking time.
+
+## T11 · Admin console and observability (2026-11-14)
+
+Status: **built and tested locally; not deployed, not tried with real Google or AWS.** All 807
+tests pass (55 new, 0 failed, 0 skipped) against a local PostgreSQL 16 `neobuddy_test`,
+including `ModularityTests`. `terraform validate` and `terraform test` pass (14 runs, 4 new, AWS
+mocked; Terraform 1.17.2, AWS provider 6.73.0 checked against the lock file). The jar was started
+with the `prod` profile: every log line is JSON, public health shows the status only, admin and
+operator endpoints redirect strangers. **`./gradlew build` itself was not green here**: Maven
+Central rate-limited the sandbox and then kept answering 404 for one jar Spotless needs
+(`commonmark-0.29.0`). Everything except Spotless ran through Gradle
+(`build -x spotlessJava -x spotlessCheck`); formatting was checked with google-java-format 2.0.0
+run directly with Spotless's settings, and finds nothing to change. CI runs the real `./gradlew
+build` on the push. Migration V4. Two new dependencies, both named in ARCHITECTURE.md:
+`logstash-logback-encoder` 9.0 (Jackson 3, matching Boot 4) and `micrometer-registry-prometheus`
+(Boot BOM).
+
+The "done when" (create a test college, connect a second Gmail through the invite link and see
+its emails processed; stop the app container and receive the health alarm) needs the new web
+OAuth client, a deploy and `terraform apply`; **none of it has been done**. The same flow ran
+end to end against the fake Google: invite link, consent redirect, code exchange, profile, poll
+with the web client's token, email ingested and processed.
+
+### What was built
+
+- **Admin console** (`/admin`, ROLE_ADMIN, Thymeleaf + htmx, works without JavaScript):
+  overview (college counts, sources needing attention, dead deliveries, channel states, recently
+  failed emails); **colleges** (create and edit name, slug, email domains, sender allowlist,
+  NeoID pattern, status, per-college classifier overrides); **college requests** with "Create
+  college" (prefills the form; creating a college removes the requests for its domains) and
+  "Dismiss"; **sources** (status, health, last sync, cursor, OAuth client, invite links,
+  disconnect); **emails** (received, college, sender, subject, type, company, match count,
+  status, error; filters, paging; reprocess by Message-ID); **dead deliveries** (retry, discard;
+  htmx swaps the row). An "Admin" link appears in the header for admins.
+- **Admin API** `/api/v1/admin`: everything in ARCHITECTURE.md (`GET sources`, `GET
+  sources/connect?college=`, `POST emails/{id}/reprocess`, `GET deliveries?status=DEAD`) plus
+  colleges (`GET`, `POST`, `PUT`), college requests, invites, disconnect, retry and discard. RFC
+  9457 problems (`invalid-college` with the list of field errors, `email-not-reprocessable`...).
+- **Invite link flow** (public, `/sources/connect/{token}`): a page explaining what will happen,
+  then Google's web flow with the ingest project's **Web client** (`gmail.readonly`,
+  `access_type=offline`, `prompt=consent`, PKCE, state kept in the session), the callback
+  exchanges the code, reads the mailbox address from the Gmail profile and stores the inbox for
+  the invite's college, starting from its first poll. 256-bit token, only its SHA-256 stored,
+  valid 24 hours, consumed atomically on success.
+- **Metrics** (Micrometer, Prometheus at `/actuator/prometheus`, admins only), each tagged
+  `college` (slug): `emails_ingested_total` (after the page commits), `extraction_failures_total
+  {type}` (detected file type; `unavailable` when the download failed),
+  `matches_total{event}` (newly stored matches only, after commit, so replays and reprocessing
+  never double-count), `delivery_latency_seconds{channel}` (received at the source inbox to
+  accepted by the channel; histogram buckets 30 s to 1 h around the 5-minute target; test alerts
+  excluded), `deliveries_dead_total{channel}`.
+- **Health:** `sources` (one indicator per inbox), `channels` (one per channel provider, from the
+  outcomes of real sends) and `discord` (gateway state). Problems report a new status DEGRADED.
+  The public `/actuator/health` shows only the aggregate; `/actuator/health/ops` (admins) shows
+  everything with details.
+- **JSON logs** with the `prod` profile (`logback-spring.xml`, set in
+  `docker-compose.prod.yml`), MDC `rfcMessageId` and `collegeSlug` set by the processing
+  listener, the dispatcher and the poller (`collegeSlug`). The DeliveryDead log line carries
+  `"event":"DeliveryDead"`.
+- **Terraform** (`alarms.tf`): EC2 status check alarm; Route 53 HTTPS health check on
+  `/actuator/health` with its alarm (us-east-1); metric filter `{ $.event = "DeliveryDead" }` with
+  an alarm at 1 per 5 minutes; SNS topics in both regions with email subscriptions
+  (`alarm_email`, required).
+- **Schema V4:** classifier override columns on `college` (five `text[]`), `mail_source.
+  oauth_client` (DESKTOP | WEB), `source_invite`, delivery status DISCARDED (comment only; the
+  column has no check constraint), two indexes.
+- **Tests (55 new):** every `/admin` and `/api/v1/admin` route, enumerated from the application's
+  request mappings (29 routes), is 403 for ROLE_USER and refused for strangers; the operator
+  endpoints too. Invite link: explains itself, redirects with the right parameters, connects and
+  the inbox's mail is processed, works once, a racing second completion fails and its grant is
+  revoked, expires after 24 h, forged state, unticked scope, unknown link, disconnect. Golden
+  pipeline log test (below). Console pages, college create/validate/edit, request shortcut, API,
+  public vs ops health with an AUTH_EXPIRED source, Prometheus names. Outbox: latency and dead
+  metrics, the DeliveryDead log event and its MDC, retry, discard (also not re-queued by a
+  reprocess), channel DEGRADED and recovery. Reprocess end to end, classifier overrides,
+  extraction failure metric.
+- **Log test:** `GoldenPipelineLogTests` runs every T4 golden scenario with the production JSON
+  encoder capturing all output (NeoBuddy loggers at DEBUG, libraries at INFO) and asserts that no
+  fixture NeoID, registration number or student name appears. It also checks the capture works.
+
+### Decisions
+
+- **DEGRADED ranks below UP for the public aggregate and above UP in the `ops` group.** The
+  deploy script and the external health check need "is the app serving". If an expired inbox
+  made `/actuator/health` DOWN, a deploy could never succeed until someone reconnected Google,
+  and the site-down alarm would fire for a mail problem. Problems with sources and channels are
+  reported on `/actuator/health/ops`, the admin overview, Discord #ops and the DeliveryDead alarm.
+- **Found and fixed: one unreadable source broke the public health.** The first version listed
+  sources with `findAll()`, which decrypts every refresh token; a row whose token does not
+  decrypt (one is left by an ingestion test) made `/actuator/health` answer 500. Listing now uses
+  a projection without the token, and the indicator cannot throw.
+- **Channel health is passive**, from the outcomes of real sends (3 retryable failures in a row:
+  DEGRADED; a success resets it). Route 53 hits health about every 2 seconds from all its
+  checkers; probing SES or ntfy on each hit would cost money and rate limit. Permanent failures
+  (DMs closed, a rejected address) are about a student's channel and do not count.
+- **Route 53 over CloudWatch Synthetics** for the external check: about $1.50 a month (check plus
+  HTTPS; up to $2.75 if billed as a non-AWS endpoint) against about $10 a month for a canary every
+  5 minutes, $52 every minute, before its Lambda and S3 costs. Status codes are enough because
+  health answers 503 when DOWN and Caddy 502 when the app container is stopped. Its metric exists
+  only in us-east-1, hence the second provider and topic (two confirmation emails).
+- **A refresh token belongs to the client that issued it**, so `mail_source.oauth_client` records
+  which of the two Google clients (Desktop for `authorizeSource`, Web for invites) to refresh
+  with. Both clients live in the ingest project.
+- **The invite is consumed in the same statement that checks it** (`update ... where used_at is
+  null and expires_at > now() returning`), after the code exchange and before the inbox is
+  stored, all in one transaction. A link that lost a race has its fresh grant revoked. An inbox
+  already connected for another college is refused before the invite is consumed.
+- **The admin's own "connect" goes through an invite too** (`GET /api/v1/admin/sources/connect`
+  creates one and redirects into it), so there is one flow and one callback URI.
+- **Disconnect keeps the row** (ingested emails reference it), empties the stored token, sets
+  DISABLED and asks Google to revoke. The bootstrap no longer reactivates a source an admin
+  disconnected (it logs a warning instead).
+- **Discard is a status, not a delete**, so reprocessing the email cannot queue the same alert
+  again. Students see it as "failed".
+- **Reprocess re-publishes `EmailIngested`** after setting the email back to RECEIVED, in one
+  transaction, so the normal listener runs. Stored matches and deliveries are never duplicated;
+  students who match now but did not before are alerted, and so is a channel verified since the
+  first run (T7's open question: accepted, and stated on the page).
+- **Classifier overrides live in the database** (five `text[]` columns rather than JSON, matching
+  how `college` stores lists). They apply on top of the YAML: per list, a non-empty override
+  replaces; recruiters add. `EmailClassifier` gained a default method taking the `College`, so
+  edits apply to the next email without a restart.
+- **The college slug can be edited.** Metrics and logs follow the new slug (the tag cache is
+  cleared); YAML overrides keyed by the old slug no longer apply to it.
+- **`extraction_failures_total{type}`** needed the detected type on failures; `ExtractorRegistry`
+  reported every failure as UNKNOWN and now re-detects the type for the result.
+- **Prometheus is admin-only**, not "internal network": nothing scrapes it yet, and allowing
+  loopback would have opened it to anything on the instance. Caddy blocks it from outside anyway.
+- **Public interface changes** (asked for by the task): `College` (overrides, `changeSlug`,
+  `changeStatus`), `SourceInbox` (client, disconnect), `StoredMatches.countsByEmail`,
+  `ChannelDirectory.typeOf`, `NotificationChannel.provider()` (default method),
+  `DeliveryStatus.DISCARDED`, `GmailProperties.web`, `EmailClassifier.classify(College, ...)`; new
+  public APIs `SourceAdmin`, `EmailAdmin`, `DeliveryAdmin`, `ChannelHealth`, and
+  `shared.observability`.
+
+### Needed before deploying
+
+- A Google OAuth client of type **Web application** in the ingest project, redirect URI
+  `https://<domain>/sources/connect/callback`; SSM `NEOBUDDY_GMAIL_WEB_CLIENT_ID` and
+  `NEOBUDDY_GMAIL_WEB_CLIENT_SECRET`. Optional: without them the console works, invite links say
+  connecting is not set up.
+- `alarm_email` in `terraform.tfvars`, then `terraform apply` (**creates paid resources:** a
+  Route 53 health check, about $1.50 a month; three CloudWatch alarms, $0.30; one custom metric,
+  $0.30. Asked for by this task; not applied). Confirm the two SNS emails.
+- The runbook's new section 11 covers the console, health, logs and alarms, and how to test the
+  health alarm by stopping the app container.
+
+### Not verified
+
+- **Real Google:** the web consent screen, the callback on the real domain, Google issuing a
+  refresh token to the Web client, and polling with it ran only against WireMock.
+- **Anything in AWS:** the alarms, the health check, the metric filter on real awslogs output
+  (the JSON format was checked locally, the filter pattern only by the mocked Terraform test), SNS
+  emails.
+- **The console in a real browser:** pages were checked through MockMvc's HTML (and a `curl` of
+  the public pages), not rendered; the htmx row swap for retry/discard has not run in a browser.
+
+### Follow-ups
+
+- Public `/actuator/health` also lists the names of the health groups (`liveness`, `ops`,
+  `readiness`), as Spring Boot does with groups. No details, but if that matters, it can be
+  hidden.
+- Channel health and rate limits are per instance and reset on restart.
+- `AdminNotifier`'s Discord message for an expired source still tells the admin to use
+  `authorizeSource` and SSM; it could point to an invite link instead.
+- Nothing scrapes Prometheus yet; CloudWatch only sees the DeliveryDead log count. A scraper (or
+  CloudWatch agent) would make the latency histogram alertable.
+- Gradle could not run Spotless in this sandbox (see Status); CI's run is the first real
+  `spotlessCheck` of this change.
+
+### Proposed commit message
+
+```
+feat(admin): add admin console, invite-link source connect, metrics, health and alarms
+
+- /admin (Thymeleaf + htmx) and /api/v1/admin, ROLE_ADMIN only: colleges with per-college
+  classifier overrides, college requests, sources, recent emails with reprocess, dead
+  deliveries with retry/discard
+- single-use 24-hour invite link connects a source inbox through Google's web OAuth flow
+  (Web client, gmail.readonly, offline, consent, PKCE); disconnect revokes the token
+- Micrometer metrics tagged by college: emails_ingested_total, extraction_failures_total,
+  matches_total, delivery_latency_seconds, deliveries_dead_total; Prometheus for admins
+- health indicators per source and channel (DEGRADED in the ops group, never in the public
+  aggregate); JSON logs in prod with rfcMessageId and collegeSlug
+- Terraform: EC2 status check, Route 53 health check and DeliveryDead log alarms via SNS email
+- V4 migration; tests for admin access (403 for ROLE_USER), invite single use and expiry, and
+  no fixture data in the golden pipeline's logs
+```

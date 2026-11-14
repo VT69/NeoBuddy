@@ -22,6 +22,11 @@ class LoggingEmailChannel implements NotificationChannel, EmailTransport {
   }
 
   @Override
+  public String provider() {
+    return "log";
+  }
+
+  @Override
   public DeliveryResult send(ChannelAddress to, Alert alert) {
     log.info(
         "Email alert for {} ({}) not sent: neobuddy.channels.email.provider is 'log'",

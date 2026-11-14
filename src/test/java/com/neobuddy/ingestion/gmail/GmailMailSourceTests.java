@@ -414,7 +414,8 @@ class GmailMailSourceTests {
             java.net.URI.create(google.tokenUri()),
             new GmailProperties.Retry(1, java.time.Duration.ofMillis(1)),
             java.time.Duration.ofSeconds(1),
-            java.time.Duration.ofSeconds(1));
+            java.time.Duration.ofSeconds(1),
+            google.web());
 
     assertThatThrownBy(() -> new GmailMailSourceFactory(unconfigured).open(sourceId, "token"))
         .isInstanceOf(MailSourceException.class)

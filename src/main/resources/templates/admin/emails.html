@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Emails')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>Recent emails</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+  <p class="hint">Headers and outcome only; bodies and attachments are never stored.</p>
+
+  <form method="get" th:action="@{/admin/emails}" class="row">
+    <select name="college" aria-label="College">
+      <option value="">All colleges</option>
+      <option th:each="c : ${colleges}" th:value="${c.id}" th:text="${c.slug}" th:selected="${c.id == college}">slug</option>
+    </select>
+    <select name="status" aria-label="Status">
+      <option value="">Any status</option>
+      <option th:each="s : ${ {'RECEIVED','PROCESSED','FAILED'} }" th:value="${s}" th:text="${s}" th:selected="${s == status}">FAILED</option>
+    </select>
+    <button class="button" type="submit">Filter</button>
+  </form>
+
+  <section class="card">
+    <h2>Reprocess an email</h2>
+    <form method="post" th:action="@{/admin/emails/reprocess}" class="row">
+      <input name="messageId" required placeholder="&lt;message-id@example.com&gt;" aria-label="RFC Message-ID">
+      <button class="button" type="submit">Reprocess</button>
+    </form>
+    <p class="hint">Fetches it from its inbox and runs the pipeline again. Alerts already sent are not repeated; students who match now but did not before, and channels verified since, are alerted.</p>
+  </section>
+
+  <p th:if="${#lists.isEmpty(emails)}" class="muted">No emails.</p>
+  <div class="table-wrap" th:unless="${#lists.isEmpty(emails)}">
+    <table class="data">
+      <thead><tr><th>Received</th><th>College</th><th>Sender</th><th>Subject</th><th>Type</th><th>Company</th><th>Matches</th><th>Status</th><th>Message-ID</th></tr></thead>
+      <tbody>
+      <tr th:each="e : ${emails}">
+        <td th:text="${@adminTime.format(e.receivedAt)}">time</td>
+        <td th:text="${slugs.get(e.collegeId)}">slug</td>
+        <td th:text="${e.sender}">placements@college.edu</td>
+        <td th:text="${e.subject}">Subject</td>
+        <td th:text="${e.eventType} ?: '—'">SHORTLIST</td>
+        <td th:text="${e.company} ?: '—'">Company</td>
+        <td class="num" th:text="${matchCounts.getOrDefault(e.rfcMessageId, 0)}">0</td>
+        <td><span th:text="${e.status}">PROCESSED</span> <code th:if="${e.error}" th:text="${e.error}">IOException</code></td>
+        <td><code th:text="${e.rfcMessageId}">&lt;id@x&gt;</code></td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="row">
+    <a th:if="${page > 0}" class="button small" th:href="@{/admin/emails(college=${college},status=${status},page=${page - 1})}">Newer</a>
+    <a th:if="${hasNext}" class="button small" th:href="@{/admin/emails(college=${college},status=${status},page=${page + 1})}">Older</a>
+  </p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

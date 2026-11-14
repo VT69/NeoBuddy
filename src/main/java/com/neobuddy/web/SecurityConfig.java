@@ -38,8 +38,12 @@ import tools.jackson.databind.json.JsonMapper;
  *   <li>Google sign-in (OpenID Connect, only {@code openid email profile}), limited to students of
  *       ACTIVE or PILOT colleges by {@link CollegeDomainOidcUserService}.
  *   <li>PENDING_CONSENT (signed in, no account yet): only the consent step.
- *   <li>USER: the dashboard, onboarding, settings and {@code /api/v1/me/**}. ADMIN comes from
- *       {@code app_user.role}; admin pages arrive with T11.
+ *   <li>USER: the dashboard, onboarding, settings and {@code /api/v1/me/**}.
+ *   <li>ADMIN (from {@code app_user.role}): the admin console {@code /admin/**}, {@code
+ *       /api/v1/admin/**}, the detailed health group {@code /actuator/health/ops} and {@code
+ *       /actuator/prometheus}.
+ *   <li>Public as well: a source invite link, {@code /sources/connect/**}; its token is the
+ *       credential.
  * </ul>
  *
  * CSRF protection is on for every state-changing request; htmx sends the token in a header. The
@@ -67,7 +71,18 @@ class SecurityConfig {
       throws Exception {
     return http.securityContext(context -> context.securityContextRepository(contexts))
         .authorizeHttpRequests(auth ->
-            auth.requestMatchers(
+            auth
+                // The admin console, its API, and the operator's view of health and metrics.
+                .requestMatchers(
+                    "/admin",
+                    "/admin/**",
+                    "/api/v1/admin",
+                    "/api/v1/admin/**",
+                    "/actuator/health/ops",
+                    "/actuator/health/ops/**",
+                    "/actuator/prometheus")
+                .hasAuthority(NeoBuddyUser.ROLE_ADMIN)
+                .requestMatchers(
                     "/",
                     "/privacy",
                     "/terms",
@@ -78,7 +93,9 @@ class SecurityConfig {
                     "/favicon.svg",
                     "/error",
                     "/actuator/health",
-                    "/actuator/health/**")
+                    "/actuator/health/**",
+                    // A campus lead's invite link: the token in it is the credential.
+                    "/sources/connect/**")
                 .permitAll()
                 .requestMatchers(HttpMethod.POST, "/college-requests")
                 .permitAll()

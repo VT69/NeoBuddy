@@ -1,6 +1,8 @@
 package com.neobuddy.processing;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,4 +19,7 @@ public interface StoredMatches {
 
   /** One page of a user's matches, newest first, test matches included. */
   List<StoredMatch> ofUser(UUID userId, int offset, int limit);
+
+  /** How many students each email matched; emails without matches are absent. */
+  Map<String, Integer> countsByEmail(Collection<String> rfcMessageIds);
 }

@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('College requests')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>College requests</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+  <p class="hint">Students of colleges NeoBuddy does not serve yet. Creating a college for a domain removes its requests.</p>
+  <p th:if="${#lists.isEmpty(requests)}" class="muted">No requests.</p>
+  <div class="table-wrap" th:unless="${#lists.isEmpty(requests)}">
+    <table class="data">
+      <thead><tr><th>When</th><th>College</th><th>Email domain</th><th>Contact</th><th></th></tr></thead>
+      <tbody>
+      <tr th:each="r : ${requests}">
+        <td th:text="${@adminTime.format(r.createdAt)}">time</td>
+        <td th:text="${r.collegeName}">Name</td>
+        <td th:text="${r.emailDomain}">college.edu</td>
+        <td th:text="${r.contactEmail} ?: '—'">someone@college.edu</td>
+        <td class="row">
+          <a class="button small primary" th:href="@{/admin/colleges/new(request=${r.id})}">Create college</a>
+          <form method="post" th:action="@{/admin/requests/{id}/dismiss(id=${r.id})}"><button class="button small" type="submit">Dismiss</button></form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -70,7 +70,22 @@ public final class GmailTestServer {
         java.net.URI.create(tokenUri()),
         new GmailProperties.Retry(maxAttempts, java.time.Duration.ofMillis(5)),
         java.time.Duration.ofSeconds(5),
-        java.time.Duration.ofSeconds(10));
+        java.time.Duration.ofSeconds(10),
+        web());
+  }
+
+  /** Google's revocation endpoint accepts every token. */
+  public void acceptRevocations() {
+    server.stubFor(post(urlPathEqualTo("/revoke")).willReturn(aResponse().withStatus(200)));
+  }
+
+  /** The web client's settings, with Google's endpoints on this server. */
+  public GmailProperties.Web web() {
+    return new GmailProperties.Web(
+        "test-web-client-id",
+        "test-web-client-secret",
+        java.net.URI.create(server.baseUrl() + "/o/oauth2/v2/auth"),
+        java.net.URI.create(server.baseUrl() + "/revoke"));
   }
 
   /** A new inbox with a fresh refresh token that the token endpoint accepts. */
@@ -121,12 +136,38 @@ public final class GmailTestServer {
     }
 
     public void profile(long historyId) {
+      profile(historyId, "inbox@college.example");
+    }
+
+    public void profile(long historyId, String emailAddress) {
       server.stubFor(
           authorized(get(urlPathEqualTo(USER + "/profile")))
+              .willReturn(json(Map.of("emailAddress", emailAddress, "historyId", "" + historyId))));
+    }
+
+    /**
+     * Google's web OAuth flow ends here: exchanging {@code code} at the token endpoint returns this
+     * account's refresh token, with the given scopes granted.
+     */
+    public void authorizationCode(String code, String grantedScopes) {
+      server.stubFor(
+          post(urlPathEqualTo("/token"))
+              .withRequestBody(containing("grant_type=authorization_code"))
+              .withRequestBody(
+                  containing("code=" + URLEncoder.encode(code, StandardCharsets.UTF_8) + "&"))
               .willReturn(
                   json(
                       Map.of(
-                          "emailAddress", "inbox@college.example", "historyId", "" + historyId))));
+                          "access_token",
+                          accessToken,
+                          "expires_in",
+                          3599,
+                          "token_type",
+                          "Bearer",
+                          "refresh_token",
+                          refreshToken,
+                          "scope",
+                          grantedScopes))));
     }
 
     /**

@@ -51,13 +51,27 @@ mock_provider "aws" {
   mock_resource "aws_iam_role" {
     defaults = { arn = "arn:aws:iam::123456789012:role/neobuddy-prod-github-deploy" }
   }
+  mock_resource "aws_sns_topic" {
+    defaults = { arn = "arn:aws:sns:ap-south-1:123456789012:neobuddy-prod-alarms" }
+  }
+  mock_resource "aws_route53_health_check" {
+    defaults = { id = "abcdef01-2345-6789-abcd-ef0123456789" }
+  }
   mock_resource "aws_eip" {
     defaults = { public_ip = "203.0.113.10" }
   }
 }
 
+mock_provider "aws" {
+  alias = "us_east_1"
+  mock_resource "aws_sns_topic" {
+    defaults = { arn = "arn:aws:sns:us-east-1:123456789012:neobuddy-prod-alarms" }
+  }
+}
+
 variables {
-  domain = "neobuddy.example.com"
+  domain      = "neobuddy.example.com"
+  alarm_email = "ops@example.com"
 }
 
 override_resource {
@@ -277,4 +291,69 @@ run "the_domain_must_be_a_dns_name" {
   }
 
   expect_failures = [var.domain]
+}
+
+run "alarms_notify_by_email" {
+  command = apply
+
+  assert {
+    condition     = aws_sns_topic_subscription.alarms_email.protocol == "email" && aws_sns_topic_subscription.alarms_email.endpoint == "ops@example.com"
+    error_message = "Alarms must be emailed to alarm_email."
+  }
+  assert {
+    condition     = aws_sns_topic_subscription.alarms_us_east_1_email.endpoint == "ops@example.com"
+    error_message = "The us-east-1 topic (health check alarm) must email alarm_email too."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.instance_status.metric_name == "StatusCheckFailed" && aws_cloudwatch_metric_alarm.instance_status.dimensions.InstanceId == aws_instance.app.id
+    error_message = "The status check alarm must watch the app instance."
+  }
+  assert {
+    condition     = contains(aws_cloudwatch_metric_alarm.instance_status.alarm_actions, aws_sns_topic.alarms.arn)
+    error_message = "The status check alarm must notify the SNS topic."
+  }
+}
+
+run "health_check_probes_the_public_endpoint" {
+  command = apply
+
+  assert {
+    condition     = aws_route53_health_check.app.type == "HTTPS" && aws_route53_health_check.app.fqdn == "neobuddy.example.com" && aws_route53_health_check.app.resource_path == "/actuator/health"
+    error_message = "The health check must request https://<domain>/actuator/health."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.health.namespace == "AWS/Route53" && aws_cloudwatch_metric_alarm.health.comparison_operator == "LessThanThreshold" && aws_cloudwatch_metric_alarm.health.dimensions.HealthCheckId == aws_route53_health_check.app.id
+    error_message = "The health alarm must fire when the Route 53 health check reports unhealthy."
+  }
+  assert {
+    condition     = contains(aws_cloudwatch_metric_alarm.health.alarm_actions, aws_sns_topic.alarms_us_east_1.arn)
+    error_message = "The health alarm must notify the us-east-1 topic (Route 53 metrics live there)."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.health.treat_missing_data == "breaching"
+    error_message = "A health check that stops reporting must count as failing."
+  }
+}
+
+run "dead_deliveries_are_counted_from_json_logs" {
+  command = apply
+
+  assert {
+    condition     = aws_cloudwatch_log_metric_filter.delivery_dead.pattern == "{ $.event = \"DeliveryDead\" }" && aws_cloudwatch_log_metric_filter.delivery_dead.log_group_name == aws_cloudwatch_log_group.app.name
+    error_message = "The metric filter must match the app's DeliveryDead JSON log lines in the app log group."
+  }
+  assert {
+    condition     = aws_cloudwatch_metric_alarm.delivery_dead.metric_name == "DeliveriesDead" && aws_cloudwatch_metric_alarm.delivery_dead.threshold == 1 && aws_cloudwatch_metric_alarm.delivery_dead.treat_missing_data == "notBreaching"
+    error_message = "One dead delivery must raise the alarm; quiet periods must not."
+  }
+}
+
+run "alarm_email_is_validated" {
+  command = plan
+
+  variables {
+    alarm_email = "not-an-address"
+  }
+
+  expect_failures = [var.alarm_email]
 }

@@ -14,6 +14,13 @@ class LayoutModel {
     return user != null && !user.needsConsent();
   }
 
+  @ModelAttribute("admin")
+  boolean admin(@AuthenticationPrincipal NeoBuddyUser user) {
+    return user != null
+        && user.getAuthorities().stream()
+            .anyMatch(a -> NeoBuddyUser.ROLE_ADMIN.equals(a.getAuthority()));
+  }
+
   @ModelAttribute("pendingConsent")
   boolean pendingConsent(@AuthenticationPrincipal NeoBuddyUser user) {
     return user != null && user.needsConsent();

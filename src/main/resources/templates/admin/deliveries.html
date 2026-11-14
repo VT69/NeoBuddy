@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Dead deliveries')}"></head>
+<body th:hx-headers="${_csrf != null} ? |{&quot;${_csrf.headerName}&quot;: &quot;${_csrf.token}&quot;}| : null">
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>Dead deliveries</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+  <p class="hint"><span th:text="${deadCount}">0</span> alerts were given up. Retry gives one a fresh set of 6 attempts; discard keeps it from ever being sent.</p>
+  <p th:if="${#lists.isEmpty(deliveries)}" class="muted">Nothing is dead.</p>
+  <div class="table-wrap" th:unless="${#lists.isEmpty(deliveries)}">
+    <table class="data">
+      <thead><tr><th>Email received</th><th>College</th><th>Channel</th><th>Subject</th><th>Attempts</th><th>Reason</th><th></th></tr></thead>
+      <tbody>
+      <tr th:each="d : ${deliveries}" th:id="|delivery-${d.id}|">
+        <td th:text="${@adminTime.format(d.receivedAt)}">time</td>
+        <td th:text="${d.collegeId != null} ? ${slugs.get(d.collegeId)} : '—'">slug</td>
+        <td th:text="${d.channelType} ?: 'removed'">NTFY</td>
+        <td><span th:text="${d.subject} ?: '—'">Subject</span> <span class="badge" th:if="${d.test}">Test</span></td>
+        <td class="num" th:text="${d.attempts}">6</td>
+        <td><code th:text="${d.reason}">HTTP 503</code></td>
+        <td class="row">
+          <form method="post" th:action="@{/admin/deliveries/{id}/retry(id=${d.id})}"
+                th:attr="hx-post=@{/admin/deliveries/{id}/retry(id=${d.id})},hx-target=|#delivery-${d.id}|"
+                hx-swap="outerHTML"><button class="button small" type="submit">Retry</button></form>
+          <form method="post" th:action="@{/admin/deliveries/{id}/discard(id=${d.id})}"
+                th:attr="hx-post=@{/admin/deliveries/{id}/discard(id=${d.id})},hx-target=|#delivery-${d.id}|"
+                hx-swap="outerHTML" hx-confirm="Discard this alert? It will never be sent."><button class="button small" type="submit">Discard</button></form>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="row">
+    <a th:if="${page > 0}" class="button small" th:href="@{/admin/deliveries(page=${page - 1})}">Newer</a>
+    <a th:if="${hasNext}" class="button small" th:href="@{/admin/deliveries(page=${page + 1})}">Older</a>
+  </p>
+  <table hidden>
+    <tr th:fragment="settled" th:id="|delivery-${deliveryId}|"><td colspan="7" class="muted" th:text="${outcome}">Queued again</td></tr>
+  </table>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

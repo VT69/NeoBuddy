@@ -2,6 +2,9 @@ package com.neobuddy.ingestion.source;
 
 import com.neobuddy.shared.college.College;
 import com.neobuddy.shared.college.CollegeRepository;
+import com.neobuddy.shared.observability.LogContext;
+import com.neobuddy.shared.observability.Metrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -49,18 +52,21 @@ public class SourceSync {
   private final MailSourceFactory factory;
   private final IngestionWriter writer;
   private final IngestionProperties properties;
+  private final MeterRegistry meters;
 
   SourceSync(
       SourceInboxRepository sources,
       CollegeRepository colleges,
       MailSourceFactory factory,
       IngestionWriter writer,
-      IngestionProperties properties) {
+      IngestionProperties properties,
+      MeterRegistry meters) {
     this.sources = sources;
     this.colleges = colleges;
     this.factory = factory;
     this.writer = writer;
     this.properties = properties;
+    this.meters = meters;
   }
 
   /** Polls every active source. One failing source never stops the others. */
@@ -94,7 +100,7 @@ public class SourceSync {
       return new Result(Outcome.SKIPPED, 0, 0);
     }
     Result result;
-    try {
+    try (LogContext ignored = LogContext.college(college.get().getSlug())) {
       result = poll(source, college.get(), factory.open(source));
     } catch (SourceAuthExpiredException e) {
       writer.markAuthExpired(sourceId);
@@ -173,6 +179,12 @@ public class SourceSync {
               header -> SenderAllowlist.allows(college.getSenderAllowlist(), header.fromAddress()))
           .ifPresent(wanted::add);
     }
-    return wanted.isEmpty() ? 0 : writer.recordPage(source.getId(), college.getId(), wanted);
+    if (wanted.isEmpty()) {
+      return 0;
+    }
+    // recordPage commits before it returns, so only committed emails are counted.
+    int recorded = writer.recordPage(source.getId(), college.getId(), wanted);
+    meters.counter(Metrics.EMAILS_INGESTED, Metrics.COLLEGE, college.getSlug()).increment(recorded);
+    return recorded;
   }
 }

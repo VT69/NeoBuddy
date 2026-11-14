@@ -35,6 +35,10 @@ class SourceBootstrapRunner implements ApplicationRunner {
       case CREATED -> log.info("Bootstrap: source inbox created; it starts from its first poll");
       case RECONNECTED -> log.info("Bootstrap: source inbox reconnected with a new refresh token");
       case UNCHANGED -> log.info("Bootstrap: source inbox already present");
+      case LEFT_DISCONNECTED ->
+          log.warn(
+              "Bootstrap: the source inbox was disconnected in the admin console and stays"
+                  + " disconnected; connect it again there, or remove NEOBUDDY_BOOTSTRAP_SOURCE_*");
     }
   }
 }

@@ -2,6 +2,7 @@ package com.neobuddy.discord.bot;
 
 import com.neobuddy.notification.AlertHistory;
 import com.neobuddy.shared.college.CollegeRepository;
+import com.neobuddy.shared.observability.HealthStatuses;
 import com.neobuddy.subscriber.ChannelDirectory;
 import com.neobuddy.subscriber.ChannelVerificationService;
 import com.neobuddy.subscriber.SubscriberService;
@@ -17,6 +18,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.health.contributor.Health;
+import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
@@ -69,6 +72,20 @@ class DiscordConfig {
         .setChunkingFilter(ChunkingFilter.NONE)
         .addEventListeners(listener)
         .build();
+  }
+
+  /**
+   * The gateway connection, under {@code discord}: DEGRADED while it is not connected (DMs and
+   * slash commands then wait). Never DOWN: Discord being away must not fail the app's health.
+   */
+  @Bean("discord")
+  HealthIndicator discordHealth(JDA jda) {
+    return () -> {
+      JDA.Status status = jda.getStatus();
+      Health.Builder health =
+          status == JDA.Status.CONNECTED ? Health.up() : Health.status(HealthStatuses.DEGRADED);
+      return health.withDetail("gateway", status.name()).build();
+    };
   }
 
   @Bean

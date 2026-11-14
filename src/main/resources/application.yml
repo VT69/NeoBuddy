@@ -64,6 +64,12 @@ neobuddy:
     # OAuth client (type "Desktop app") of the Google Cloud project with the Gmail API enabled.
     client-id: ${NEOBUDDY_GMAIL_CLIENT_ID:}
     client-secret: ${NEOBUDDY_GMAIL_CLIENT_SECRET:}
+    # OAuth client of type "Web application" in the same project, for the admin console's invite
+    # links (connect an inbox from the browser). Redirect URI: {base-url}/sources/connect/callback.
+    # Optional: without it, inboxes can only be added with ./gradlew authorizeSource.
+    web:
+      client-id: ${NEOBUDDY_GMAIL_WEB_CLIENT_ID:}
+      client-secret: ${NEOBUDDY_GMAIL_WEB_CLIENT_SECRET:}
     retry:
       # For HTTP 429 and 5xx: tries in total, and the wait before the second (doubles after).
       max-attempts: 4
@@ -197,13 +203,31 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # prometheus is for admins only (SecurityConfig) and Caddy blocks it from outside.
+        include: health,prometheus
   endpoint:
     health:
       # Public: status only. The local profile shows details.
       show-details: never
       probes:
         enabled: true
+      status:
+        # DEGRADED (a source inbox or alert channel needs a person) ranks below UP here, so the
+        # public aggregate answers only "is the app serving": a lapsed inbox never fails a deploy
+        # or fires the "site down" alarm. The ops group below ranks it above UP.
+        order: down, out-of-service, up, degraded, unknown
+      group:
+        # /actuator/health/ops: everything, with details, for admins (SecurityConfig).
+        ops:
+          include: "*"
+          show-details: when-authorized
+          show-components: when-authorized
+          roles: ROLE_ADMIN
+          status:
+            order: down, out-of-service, degraded, up, unknown
+  metrics:
+    tags:
+      application: neobuddy
 
 spring.modulith:
   events:

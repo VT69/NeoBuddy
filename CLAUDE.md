@@ -23,6 +23,8 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
   - Emails are only logged locally; real ones need NEOBUDDY_EMAIL_PROVIDER=ses, NEOBUDDY_SES_FROM
     and AWS credentials (see README, "Alerts: push and email").
 - Authorise a source inbox (prints its refresh token once): ./gradlew authorizeSource --console=plain
+  - Or from the admin console (/admin/sources, invite link); needs NEOBUDDY_GMAIL_WEB_CLIENT_ID /
+    NEOBUDDY_GMAIL_WEB_CLIENT_SECRET (a "Web application" client).
   - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply
 - Container image: ./gradlew jibDockerBuild (needs Docker). Production runbook: deploy/README.md.

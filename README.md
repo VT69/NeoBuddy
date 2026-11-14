@@ -128,6 +128,21 @@ college's sender allowlist is processed, once, about every 2 minutes
 (`neobuddy.ingestion.poll-interval`). To reconnect an inbox whose access was revoked, authorise
 it again and restart with the new token.
 
+**Or connect it from the admin console** (any inbox, of any college, including one a campus lead
+signs in to): it needs a second OAuth client in the same project, of type "Web application",
+with the redirect URI `http://localhost:8080/sources/connect/callback` (and
+`https://<domain>/sources/connect/callback` in production):
+
+```bash
+export NEOBUDDY_GMAIL_WEB_CLIENT_ID=<web client id>
+export NEOBUDDY_GMAIL_WEB_CLIENT_SECRET=<web client secret>
+```
+
+Signed in as an admin, open `/admin/sources`, pick the college and create an invite link. Whoever
+opens the link (no NeoBuddy account needed) approves read-only access at Google and the inbox is
+connected for that college. A link works once and expires after 24 hours. Disconnecting an inbox
+there stops polling and revokes its token.
+
 **Check it end to end:** add an address you can send from to
 `NEOBUDDY_BOOTSTRAP_COLLEGE_SENDER_ALLOWLIST`, restart, wait for the first poll, then send the
 inbox an email from that address with a small spreadsheet containing your NeoID. Within one poll

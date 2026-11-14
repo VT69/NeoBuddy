@@ -3,7 +3,10 @@ package com.neobuddy.processing.classify;
 import com.neobuddy.ingestion.RawEmail;
 import com.neobuddy.processing.Classification;
 import com.neobuddy.processing.EventType;
+import com.neobuddy.processing.classify.ClassifierProperties.Keywords;
 import com.neobuddy.processing.classify.ClassifierProperties.Rules;
+import com.neobuddy.shared.college.ClassifierOverrides;
+import com.neobuddy.shared.college.College;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jsoup.Jsoup;
@@ -27,7 +30,10 @@ public class KeywordEmailClassifier implements EmailClassifier {
 
   private final ClassifierProperties properties;
   private final CompanyNameResolver companies;
+  private static final int MAX_CACHED = 256;
+
   private final Map<String, CompiledRules> compiled = new ConcurrentHashMap<>();
+  private final Map<Rules, CompiledRules> byRules = new ConcurrentHashMap<>();
 
   public KeywordEmailClassifier(ClassifierProperties properties, CompanyNameResolver companies) {
     this.properties = properties;
@@ -39,6 +45,36 @@ public class KeywordEmailClassifier implements EmailClassifier {
     CompiledRules rules = rulesFor(collegeSlug);
     String subject = email.subject() == null ? "" : email.subject();
     return new Classification(type(rules, subject, email), companies.resolve(collegeSlug, subject));
+  }
+
+  /**
+   * Like {@link #classify(String, RawEmail)}, with the keyword lists the college set in the admin
+   * console replacing the configured ones (each list separately) and its recruiters added.
+   */
+  @Override
+  public Classification classify(College college, RawEmail email) {
+    ClassifierOverrides overrides = college.getClassifierOverrides();
+    if (overrides.isEmpty()) {
+      return classify(college.getSlug(), email);
+    }
+    Rules configured = properties.rulesFor(college.getSlug());
+    Rules effective =
+        new Rules(
+            configured
+                .offer()
+                .overriddenBy(new Keywords(overrides.offerSubject(), overrides.offerBody())),
+            configured
+                .shortlist()
+                .overriddenBy(
+                    new Keywords(overrides.shortlistSubject(), overrides.shortlistBody())));
+    if (byRules.size() > MAX_CACHED) {
+      byRules.clear();
+    }
+    CompiledRules rules = byRules.computeIfAbsent(effective, CompiledRules::new);
+    String subject = email.subject() == null ? "" : email.subject();
+    return new Classification(
+        type(rules, subject, email),
+        companies.resolve(college.getSlug(), overrides.knownRecruiters(), subject));
   }
 
   private static EventType type(CompiledRules rules, String subject, RawEmail email) {

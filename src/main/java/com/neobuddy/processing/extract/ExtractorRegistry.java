@@ -76,7 +76,16 @@ public class ExtractorRegistry {
     } catch (ExtractionException e) {
       log.warn(
           "Extraction failed for attachment '{}': {}", attachment.filenameForLog(), e.getMessage());
-      return ExtractionResult.without(attachment, Status.FAILED, DetectedType.UNKNOWN);
+      return ExtractionResult.without(attachment, Status.FAILED, typeOf(attachment, bytes));
+    }
+  }
+
+  /** The detected type of a file whose extraction failed, for the failure metric. */
+  private DetectedType typeOf(AttachmentRef attachment, byte[] bytes) {
+    try {
+      return detector.detect(bytes, attachment);
+    } catch (RuntimeException e) {
+      return DetectedType.UNKNOWN;
     }
   }
 

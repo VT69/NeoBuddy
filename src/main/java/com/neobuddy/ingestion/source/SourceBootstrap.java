@@ -23,7 +23,9 @@ public class SourceBootstrap {
     NOT_CONFIGURED,
     CREATED,
     RECONNECTED,
-    UNCHANGED
+    UNCHANGED,
+    /** An admin disconnected the inbox; the configuration does not override that. */
+    LEFT_DISCONNECTED
   }
 
   private final SourceInboxRepository sources;
@@ -62,6 +64,9 @@ public class SourceBootstrap {
     if (!inbox.getCollegeId().equals(college.getId())) {
       throw new IllegalStateException(
           "neobuddy.bootstrap.source.email is already connected to another college");
+    }
+    if (inbox.getStatus() == SourceStatus.DISABLED) {
+      return Report.LEFT_DISCONNECTED;
     }
     if (inbox.getRefreshToken().equals(token)) {
       return Report.UNCHANGED;

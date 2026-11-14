@@ -58,6 +58,7 @@ class FlywayMigrationTests {
             String.class);
 
     assertThat(tables)
-        .containsExactlyInAnyOrder("app_user", "identifier", "mail_source", "processed_email");
+        .containsExactlyInAnyOrder(
+            "app_user", "identifier", "mail_source", "processed_email", "source_invite");
   }
 }

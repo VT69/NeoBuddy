@@ -42,6 +42,21 @@ public class College {
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
+  @Column(name = "classifier_offer_subject", nullable = false, columnDefinition = "text[]")
+  private List<String> classifierOfferSubject = List.of();
+
+  @Column(name = "classifier_offer_body", nullable = false, columnDefinition = "text[]")
+  private List<String> classifierOfferBody = List.of();
+
+  @Column(name = "classifier_shortlist_subject", nullable = false, columnDefinition = "text[]")
+  private List<String> classifierShortlistSubject = List.of();
+
+  @Column(name = "classifier_shortlist_body", nullable = false, columnDefinition = "text[]")
+  private List<String> classifierShortlistBody = List.of();
+
+  @Column(name = "known_recruiters", nullable = false, columnDefinition = "text[]")
+  private List<String> knownRecruiters = List.of();
+
   protected College() {}
 
   public College(
@@ -75,6 +90,33 @@ public class College {
     this.allowedEmailDomains = List.copyOf(allowedEmailDomains);
     this.senderAllowlist = List.copyOf(senderAllowlist);
     this.neoIdPattern = Objects.requireNonNull(neoIdPattern, "neoIdPattern");
+  }
+
+  /** Renames the college's slug, which shows in metrics and logs. Callers check uniqueness. */
+  public void changeSlug(String slug) {
+    this.slug = Objects.requireNonNull(slug, "slug");
+  }
+
+  public void changeStatus(CollegeStatus status) {
+    this.status = Objects.requireNonNull(status, "status");
+  }
+
+  public void updateClassifierOverrides(ClassifierOverrides overrides) {
+    Objects.requireNonNull(overrides, "overrides");
+    this.classifierOfferSubject = overrides.offerSubject();
+    this.classifierOfferBody = overrides.offerBody();
+    this.classifierShortlistSubject = overrides.shortlistSubject();
+    this.classifierShortlistBody = overrides.shortlistBody();
+    this.knownRecruiters = overrides.knownRecruiters();
+  }
+
+  public ClassifierOverrides getClassifierOverrides() {
+    return new ClassifierOverrides(
+        classifierOfferSubject,
+        classifierOfferBody,
+        classifierShortlistSubject,
+        classifierShortlistBody,
+        knownRecruiters);
   }
 
   /** True while students of this college may sign up and receive alerts. */

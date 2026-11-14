@@ -8,7 +8,10 @@ import com.neobuddy.processing.TestMatches;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -68,6 +71,23 @@ class JdbcStoredMatches implements StoredMatches, TestMatches {
         userId,
         Math.max(limit, 0),
         Math.max(offset, 0));
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Map<String, Integer> countsByEmail(Collection<String> rfcMessageIds) {
+    if (rfcMessageIds.isEmpty()) {
+      return Map.of();
+    }
+    Map<String, Integer> counts = new HashMap<>();
+    jdbc.query(
+        "select email_id, count(*) as matches from match_hit where email_id = any (?)"
+            + " group by email_id",
+        rs -> {
+          counts.put(rs.getString("email_id"), rs.getInt("matches"));
+        },
+        (Object) rfcMessageIds.toArray(String[]::new));
+    return counts;
   }
 
   @Override

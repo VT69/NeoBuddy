@@ -54,6 +54,11 @@ class SesEmailChannel implements NotificationChannel, EmailTransport {
   }
 
   @Override
+  public String provider() {
+    return "ses";
+  }
+
+  @Override
   public DeliveryResult send(ChannelAddress to, Alert alert) {
     return send(to, renderer.email(alert));
   }

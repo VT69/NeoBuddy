@@ -50,3 +50,15 @@ output "dns_records" {
     }],
   )
 }
+
+output "alarm_topics" {
+  description = "SNS topics the alarms notify. Confirm the subscription email of each."
+  value = {
+    (var.region) = aws_sns_topic.alarms.arn
+    "us-east-1"  = aws_sns_topic.alarms_us_east_1.arn
+  }
+}
+
+output "health_check_id" {
+  value = aws_route53_health_check.app.id
+}

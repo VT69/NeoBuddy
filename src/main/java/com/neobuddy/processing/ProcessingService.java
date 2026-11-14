@@ -9,10 +9,13 @@ import com.neobuddy.processing.extract.ExtractorRegistry;
 import com.neobuddy.processing.extract.TextChunk;
 import com.neobuddy.processing.match.Matcher;
 import com.neobuddy.shared.college.College;
+import com.neobuddy.shared.observability.Metrics;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,18 +43,21 @@ public class ProcessingService {
   private final Matcher matcher;
   private final ApplicationEventPublisher events;
   private final Optional<ProcessingResultSink> sink;
+  private final MeterRegistry meters;
 
   public ProcessingService(
       ExtractorRegistry extractors,
       EmailClassifier classifier,
       Matcher matcher,
       ApplicationEventPublisher events,
-      Optional<ProcessingResultSink> sink) {
+      Optional<ProcessingResultSink> sink,
+      MeterRegistry meters) {
     this.extractors = extractors;
     this.classifier = classifier;
     this.matcher = matcher;
     this.events = events;
     this.sink = sink;
+    this.meters = meters;
   }
 
   /**
@@ -68,9 +74,9 @@ public class ProcessingService {
       chunks.add(new TextChunk(SUBJECT_SOURCE, SUBJECT_SOURCE, email.subject().strip()));
     }
     chunks.addAll(extractors.extractBody(email.textBody(), email.htmlBody()));
-    ExtractionSummary summary = extractAttachments(email, attachments, chunks);
+    ExtractionSummary summary = extractAttachments(college, email, attachments, chunks);
 
-    Classification classification = classifier.classify(college.getSlug(), email);
+    Classification classification = classifier.classify(college, email);
     List<MatchHit> hits = matcher.match(college.getId(), classification.type(), chunks);
     ProcessingResult result =
         new ProcessingResult(college.getId(), email.rfcMessageId(), classification, hits, summary);
@@ -92,7 +98,7 @@ public class ProcessingService {
   }
 
   private ExtractionSummary extractAttachments(
-      RawEmail email, AttachmentSource attachments, List<TextChunk> chunks) {
+      College college, RawEmail email, AttachmentSource attachments, List<TextChunk> chunks) {
     int extracted = 0;
     int skipped = 0;
     int failed = 0;
@@ -105,10 +111,14 @@ public class ProcessingService {
             chunks.addAll(result.chunks());
           }
           case SKIPPED_TOO_LARGE, SKIPPED_UNSUPPORTED -> skipped++;
-          case FAILED -> failed++;
+          case FAILED -> {
+            failed++;
+            countFailure(college, result.type() == null ? "unknown" : result.type().name());
+          }
         }
       } catch (IOException | RuntimeException e) {
         failed++;
+        countFailure(college, "unavailable");
         log.warn(
             "Could not fetch attachment '{}' of email {}",
             attachment.filenameForLog(),
@@ -116,5 +126,20 @@ public class ProcessingService {
       }
     }
     return new ExtractionSummary(email.attachments().size(), extracted, skipped, failed);
+  }
+
+  /**
+   * @param type the attachment's detected file type, lower case; "unavailable" when it could not be
+   *     fetched
+   */
+  private void countFailure(College college, String type) {
+    meters
+        .counter(
+            Metrics.EXTRACTION_FAILURES,
+            Metrics.COLLEGE,
+            college.getSlug(),
+            "type",
+            type.toLowerCase(Locale.ROOT))
+        .increment();
   }
 }

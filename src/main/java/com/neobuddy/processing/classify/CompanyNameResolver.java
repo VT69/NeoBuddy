@@ -74,7 +74,10 @@ public class CompanyNameResolver {
   private static final Pattern HAS_LETTER = Pattern.compile("\\p{L}");
 
   private final ClassifierProperties properties;
+  private static final int MAX_CACHED = 256;
+
   private final Map<String, KeywordMatcher> recruiters = new ConcurrentHashMap<>();
+  private final Map<List<String>, KeywordMatcher> extra = new ConcurrentHashMap<>();
 
   public CompanyNameResolver(ClassifierProperties properties) {
     this.properties = properties;
@@ -86,11 +89,29 @@ public class CompanyNameResolver {
    * @return the company, or empty only if the subject is blank
    */
   public Optional<String> resolve(String collegeSlug, String subject) {
+    return resolve(collegeSlug, List.of(), subject);
+  }
+
+  /**
+   * @param extraRecruiters recruiters the college added in the admin console, checked after the
+   *     configured ones
+   */
+  public Optional<String> resolve(
+      String collegeSlug, List<String> extraRecruiters, String subject) {
     String cleaned = cleanSubject(subject);
     if (cleaned.isEmpty()) {
       return Optional.empty();
     }
     Optional<String> known = recruitersFor(collegeSlug).firstMatch(cleaned);
+    if (known.isEmpty() && !extraRecruiters.isEmpty()) {
+      if (extra.size() > MAX_CACHED) {
+        extra.clear();
+      }
+      known =
+          extra
+              .computeIfAbsent(List.copyOf(extraRecruiters), KeywordMatcher::new)
+              .firstMatch(cleaned);
+    }
     if (known.isPresent()) {
       return known;
     }

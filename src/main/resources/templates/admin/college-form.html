@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head(${collegeId == null} ? 'New college' : 'Edit college')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1 th:text="${collegeId == null} ? 'New college' : |College ${form.slug}|">College</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+
+  <form method="post" class="card stack"
+        th:action="${collegeId == null} ? @{/admin/colleges} : @{/admin/colleges/{id}(id=${collegeId})}">
+    <div class="grid-2">
+      <label>Name <input name="name" th:value="${form.name}" required maxlength="200"></label>
+      <label>Slug <span class="hint">lower case, used in metrics, logs and URLs</span>
+        <input name="slug" th:value="${form.slug}" required maxlength="40" pattern="[a-z0-9]([a-z0-9-]*[a-z0-9])?"></label>
+      <label>Email domains <span class="hint">students sign in from these; one per line</span>
+        <textarea name="emailDomains" th:text="${form.emailDomains}" required></textarea></label>
+      <label>Sender allowlist <span class="hint">placement-cell addresses, or @domain; one per line</span>
+        <textarea name="senderAllowlist" th:text="${form.senderAllowlist}" required></textarea></label>
+      <label>NeoID pattern <span class="hint">regular expression, checked when a student adds a NeoID</span>
+        <input name="neoIdPattern" th:value="${form.neoIdPattern}"></label>
+      <label>Status
+        <select name="status">
+          <option th:each="s : ${statuses}" th:value="${s}" th:text="${s}" th:selected="${s.name() == form.status}">PILOT</option>
+        </select>
+        <span class="hint">PILOT and ACTIVE accept students and are polled; PAUSED stops both.</span>
+      </label>
+    </div>
+    <h2>Classifier overrides</h2>
+    <p class="hint">One keyword or phrase per line. An empty box keeps the default list from application.yml; a filled one replaces it for this college. Recruiters are added to the global list.</p>
+    <div class="grid-2">
+      <label>Offer, in the subject <textarea name="offerSubject" th:text="${form.offerSubject}"></textarea></label>
+      <label>Offer, in the body <textarea name="offerBody" th:text="${form.offerBody}"></textarea></label>
+      <label>Shortlist, in the subject <textarea name="shortlistSubject" th:text="${form.shortlistSubject}"></textarea></label>
+      <label>Shortlist, in the body <textarea name="shortlistBody" th:text="${form.shortlistBody}"></textarea></label>
+      <label>Known recruiters <textarea name="knownRecruiters" th:text="${form.knownRecruiters}"></textarea></label>
+    </div>
+    <div class="row"><button class="button primary" type="submit" th:text="${collegeId == null} ? 'Create college' : 'Save'">Save</button></div>
+  </form>
+
+  <section class="card" th:if="${collegeId != null}">
+    <h2>Source inboxes</h2>
+    <p th:if="${#lists.isEmpty(collegeSources)}" class="muted">None yet.</p>
+    <ul>
+      <li th:each="s : ${collegeSources}"><span th:text="${s.email}">inbox</span> · <span th:text="${s.health}">OK</span></li>
+    </ul>
+    <form method="post" th:action="@{/admin/sources/invites}">
+      <input type="hidden" name="collegeId" th:value="${collegeId}">
+      <button class="button" type="submit">Create an invite link for its campus lead</button>
+    </form>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

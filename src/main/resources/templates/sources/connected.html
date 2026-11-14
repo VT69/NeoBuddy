@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Inbox connected')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1>Inbox connected</h1>
+  <section class="card">
+    <p class="notice ok"><strong th:text="${connected.email}">inbox@college.edu</strong> is <span th:text="${connected.reconnected} ? 'connected again' : 'connected'">connected</span>.</p>
+    <p>NeoBuddy starts reading placement mail that arrives from now on, within a few minutes. You can close this tab.</p>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

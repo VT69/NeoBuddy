@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Connect your placement inbox')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1>Connect your placement inbox</h1>
+  <section class="card">
+    <p>You were invited to connect the inbox that receives placement emails for <strong th:text="${invite.collegeName}">College</strong> to NeoBuddy.</p>
+    <ul class="prose">
+      <li>Google will ask you to let NeoBuddy <strong>read</strong> that Gmail account. NeoBuddy cannot send, delete or change mail.</li>
+      <li>Only mail from your college's placement-cell senders is read, and only mail that arrives from now on.</li>
+      <li>Email bodies and attachments are never stored; each student only gets their own row.</li>
+      <li>You can remove access any time at myaccount.google.com/permissions.</li>
+    </ul>
+    <p class="muted">This link works once and expires <span th:text="${@adminTime.format(invite.expiresAt)}">tomorrow</span>.</p>
+    <p th:unless="${configured}" class="notice warn">Connecting is not set up on this server yet. Ask the NeoBuddy admin.</p>
+    <a th:if="${configured}" class="button primary big" th:href="@{/sources/connect/{token}/start(token=${token})}">Continue with Google</a>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

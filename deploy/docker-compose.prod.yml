@@ -47,6 +47,8 @@ services:
       DB_URL: jdbc:postgresql://db:5432/neobuddy
       DB_USERNAME: neobuddy
       AWS_REGION: ${AWS_REGION:?}
+      # JSON logs (logback-spring.xml), one object per line, for CloudWatch metric filters.
+      SPRING_PROFILES_ACTIVE: prod
     # Loopback only, for deploy.sh's health check; the security group would block it anyway.
     ports:
       - "127.0.0.1:8080:8080"

@@ -8,6 +8,8 @@ import com.neobuddy.processing.EmailProcessingFailed;
 import com.neobuddy.processing.ProcessingService;
 import com.neobuddy.shared.college.College;
 import com.neobuddy.shared.college.CollegeRepository;
+import com.neobuddy.shared.observability.CollegeTags;
+import com.neobuddy.shared.observability.LogContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.ApplicationEventPublisher;
@@ -40,14 +42,17 @@ class EmailIngestedListener {
   private final CollegeRepository colleges;
   private final ApplicationEventPublisher events;
   private final TransactionTemplate inNewTransaction;
+  private final CollegeTags collegeTags;
 
   EmailIngestedListener(
+      CollegeTags collegeTags,
       MailReader mailReader,
       ProcessingService processing,
       ProcessedEmails processedEmails,
       CollegeRepository colleges,
       ApplicationEventPublisher events,
       PlatformTransactionManager transactionManager) {
+    this.collegeTags = collegeTags;
     this.mailReader = mailReader;
     this.processing = processing;
     this.processedEmails = processedEmails;
@@ -59,6 +64,13 @@ class EmailIngestedListener {
 
   @ApplicationModuleListener
   void on(EmailIngested event) {
+    try (LogContext ignored =
+        LogContext.of(event.rfcMessageId(), collegeTags.slugOf(event.collegeId()))) {
+      handle(event);
+    }
+  }
+
+  private void handle(EmailIngested event) {
     try {
       inNewTransaction.executeWithoutResult(status -> process(event));
     } catch (RuntimeException | Error e) {

@@ -124,3 +124,26 @@ details.setup summary { cursor: pointer; color: var(--accent); min-height: 44px;
   .button.big { width: auto; }
   .stack.inline-wide { flex-direction: row; }
 }
+
+/* Admin console: wider pages, dense tables that scroll sideways on a phone. */
+.page.wide { max-width: 72rem; }
+.admin-nav { display: flex; flex-wrap: wrap; gap: .25rem 1rem; margin: 0 0 1rem; padding-bottom: .5rem; border-bottom: 1px solid var(--line); }
+.admin-nav a { text-decoration: none; }
+.admin-nav a.current { font-weight: 700; color: var(--text); }
+.table-wrap { overflow-x: auto; }
+table.data { width: 100%; border-collapse: collapse; font-size: .9rem; }
+table.data th, table.data td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.data th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+table.data td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.data code { font-size: .8rem; }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: .75rem; margin: 0 0 1rem; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: .75rem; }
+.stat strong { display: block; font-size: 1.5rem; }
+.stat.attention { border-color: var(--error); }
+textarea {
+  width: 100%; min-height: 5rem; padding: .55rem .7rem; font: inherit; color: var(--text);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+}
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: .75rem; }
+.invite-link { word-break: break-all; }
+.hint { color: var(--muted); font-size: .875rem; font-weight: 400; }

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Sources')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page wide">
+  <h1>Source inboxes</h1>
+  <nav th:replace="~{fragments/admin :: nav}"></nav>
+  <div th:replace="~{fragments/admin :: messages}"></div>
+
+  <section class="card" th:if="${inviteLink}">
+    <h2>Invite link</h2>
+    <p>Send this to the campus lead. It connects one inbox, once, and expires <strong th:text="${@adminTime.format(inviteExpiresAt)}">tomorrow</strong>. It is shown only now.</p>
+    <p><code class="invite-link" th:text="${inviteLink}">https://…</code></p>
+  </section>
+
+  <p class="notice warn" th:unless="${webConnectConfigured}">The web OAuth client is not configured (NEOBUDDY_GMAIL_WEB_CLIENT_ID / _SECRET), so invite links cannot be completed yet.</p>
+
+  <section class="card">
+    <h2>Connect an inbox</h2>
+    <form method="post" th:action="@{/admin/sources/invites}" class="row">
+      <select name="collegeId" required aria-label="College">
+        <option th:each="c : ${colleges}" th:value="${c.id}" th:text="|${c.slug} (${c.status})|">slug</option>
+      </select>
+      <button class="button primary" type="submit">Create invite link</button>
+    </form>
+    <p class="hint">To connect an inbox you can sign in to yourself, create a link and open it in a browser signed in to that inbox.</p>
+  </section>
+
+  <section class="card">
+    <h2>Inboxes</h2>
+    <p class="hint">Stale means not polled for <span th:text="${staleAfterMinutes}">10</span> minutes.</p>
+    <p th:if="${#lists.isEmpty(sources)}" class="muted">None connected.</p>
+    <div class="table-wrap" th:unless="${#lists.isEmpty(sources)}">
+      <table class="data">
+        <thead><tr><th>College</th><th>Inbox</th><th>Status</th><th>Health</th><th>Last sync</th><th>Cursor</th><th>Client</th><th></th></tr></thead>
+        <tbody>
+        <tr th:each="s : ${sources}">
+          <td th:text="${s.collegeSlug}">slug</td>
+          <td th:text="${s.email}">inbox</td>
+          <td th:text="${s.status}">ACTIVE</td>
+          <td><span th:replace="~{fragments/admin :: health(${s.health.name()}, ${s.health.needsAttention()})}"></span></td>
+          <td th:text="${@adminTime.format(s.lastSyncedAt)}">time</td>
+          <td class="num" th:text="${s.cursor} ?: '—'">12345</td>
+          <td th:text="${s.oauthClient}">WEB</td>
+          <td>
+            <form th:if="${s.status != 'DISABLED'}" method="post" th:action="@{/admin/sources/{id}/disconnect(id=${s.id})}">
+              <button class="button small danger" type="submit">Disconnect</button>
+            </form>
+          </td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Recent invite links</h2>
+    <p th:if="${#lists.isEmpty(invites)}" class="muted">None yet.</p>
+    <div class="table-wrap" th:unless="${#lists.isEmpty(invites)}">
+      <table class="data">
+        <thead><tr><th>Created</th><th>College</th><th>Expires</th><th>State</th></tr></thead>
+        <tbody>
+        <tr th:each="i : ${invites}">
+          <td th:text="${@adminTime.format(i.createdAt)}">time</td>
+          <td th:text="${slugs.get(i.collegeId)}">slug</td>
+          <td th:text="${@adminTime.format(i.expiresAt)}">time</td>
+          <td th:text="${i.usedAt != null} ? |used ${@adminTime.ago(i.usedAt)}| : (${@adminTime.past(i.expiresAt)} ? 'expired' : 'open')">open</td>
+        </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

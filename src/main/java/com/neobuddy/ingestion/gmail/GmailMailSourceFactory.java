@@ -10,10 +10,12 @@ import com.google.auth.oauth2.UserCredentials;
 import com.neobuddy.ingestion.source.MailSource;
 import com.neobuddy.ingestion.source.MailSourceException;
 import com.neobuddy.ingestion.source.MailSourceFactory;
+import com.neobuddy.ingestion.source.OAuthClient;
 import com.neobuddy.ingestion.source.SourceInbox;
 import io.github.resilience4j.core.IntervalFunction;
 import io.github.resilience4j.retry.Retry;
 import io.github.resilience4j.retry.RetryConfig;
+import java.io.IOException;
 import java.util.UUID;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
@@ -48,19 +50,56 @@ public class GmailMailSourceFactory implements MailSourceFactory {
 
   @Override
   public MailSource open(SourceInbox inbox) {
-    return open(inbox.getId(), inbox.getRefreshToken());
+    if (inbox.getRefreshToken() == null || inbox.getRefreshToken().isBlank()) {
+      throw new MailSourceException("Source inbox is disconnected");
+    }
+    return open(inbox.getId(), inbox.getRefreshToken(), inbox.getOauthClient());
+  }
+
+  /** For callers that hold a refresh token from the desktop client but no stored inbox. */
+  public MailSource open(UUID sourceId, String refreshToken) {
+    return open(sourceId, refreshToken, OAuthClient.DESKTOP);
   }
 
   /** For callers that hold a refresh token but no stored inbox. */
-  public MailSource open(UUID sourceId, String refreshToken) {
-    if (isBlank(properties.clientId()) || isBlank(properties.clientSecret())) {
+  public MailSource open(UUID sourceId, String refreshToken, OAuthClient client) {
+    return new GmailMailSource(sourceId, gmail(refreshToken, client), retry);
+  }
+
+  /** The address of the mailbox a refresh token gives access to. */
+  public String mailboxAddress(String refreshToken, OAuthClient client) {
+    try {
+      return gmail(refreshToken, client).users().getProfile("me").execute().getEmailAddress();
+    } catch (IOException e) {
       throw new MailSourceException(
-          "Gmail is not configured: set NEOBUDDY_GMAIL_CLIENT_ID and NEOBUDDY_GMAIL_CLIENT_SECRET");
+          "Could not read the mailbox profile: " + e.getClass().getName());
+    }
+  }
+
+  private Gmail gmail(String refreshToken, OAuthClient client) {
+    String clientId;
+    String clientSecret;
+    if (client == OAuthClient.WEB) {
+      if (!properties.web().configured()) {
+        throw new MailSourceException(
+            "The Gmail web client is not configured: set NEOBUDDY_GMAIL_WEB_CLIENT_ID and"
+                + " NEOBUDDY_GMAIL_WEB_CLIENT_SECRET");
+      }
+      clientId = properties.web().clientId();
+      clientSecret = properties.web().clientSecret();
+    } else {
+      if (isBlank(properties.clientId()) || isBlank(properties.clientSecret())) {
+        throw new MailSourceException(
+            "Gmail is not configured: set NEOBUDDY_GMAIL_CLIENT_ID and"
+                + " NEOBUDDY_GMAIL_CLIENT_SECRET");
+      }
+      clientId = properties.clientId();
+      clientSecret = properties.clientSecret();
     }
     UserCredentials credentials =
         UserCredentials.newBuilder()
-            .setClientId(properties.clientId())
-            .setClientSecret(properties.clientSecret())
+            .setClientId(clientId)
+            .setClientSecret(clientSecret)
             .setRefreshToken(refreshToken)
             .setTokenServerUri(properties.tokenUri())
             .setHttpTransportFactory(() -> transport)
@@ -72,12 +111,10 @@ public class GmailMailSourceFactory implements MailSourceFactory {
           request.setConnectTimeout((int) properties.connectTimeout().toMillis());
           request.setReadTimeout((int) properties.readTimeout().toMillis());
         };
-    Gmail gmail =
-        new Gmail.Builder(transport, GsonFactory.getDefaultInstance(), initializer)
-            .setRootUrl(properties.rootUrl())
-            .setApplicationName(APPLICATION_NAME)
-            .build();
-    return new GmailMailSource(sourceId, gmail, retry);
+    return new Gmail.Builder(transport, GsonFactory.getDefaultInstance(), initializer)
+        .setRootUrl(properties.rootUrl())
+        .setApplicationName(APPLICATION_NAME)
+        .build();
   }
 
   private static boolean isBlank(String value) {

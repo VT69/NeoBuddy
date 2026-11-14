@@ -526,4 +526,53 @@ class SubscriberServiceTests {
         matchId,
         channelId);
   }
+
+  // ---- Sign-in without registering -------------------------------------------------------------
+
+  @Test
+  void signInFindsNoAccountForANewStudentAndCreatesNothing() {
+    String email = TestColleges.studentEmail(college);
+
+    assertThat(
+            subscribers.signIn(
+                new OidcClaims("sub-" + UUID.randomUUID(), email, true, "New", null)))
+        .isEmpty();
+    assertThat(subscribers.findByEmail(email)).isEmpty();
+  }
+
+  @Test
+  void signInFindsTheAccountOfAKnownGoogleIdentity() {
+    String sub = "sub-" + UUID.randomUUID();
+    SubscriberView created =
+        subscribers.registerFromOidc(
+            new OidcClaims(sub, TestColleges.studentEmail(college), true, "Tara", null));
+
+    assertThat(subscribers.signIn(new OidcClaims(sub, created.email(), true, "Tara", null)))
+        .hasValueSatisfying(found -> assertThat(found.id()).isEqualTo(created.id()));
+  }
+
+  @Test
+  void signInRefusesWhatRegistrationRefuses() {
+    assertThatThrownBy(
+            () -> subscribers.signIn(new OidcClaims("s", "someone@gmail.com", true, "X", null)))
+        .isInstanceOfSatisfying(
+            RegistrationRejectedException.class,
+            e -> assertThat(e.reason()).isEqualTo(Reason.COLLEGE_NOT_SUPPORTED));
+  }
+
+  @Test
+  void aChannelCanBeSwitchedOffAndOnByItsOwnerOnly() {
+    SubscriberView student =
+        subscribers.registerFromOidc(
+            new OidcClaims(
+                "sub-" + UUID.randomUUID(), TestColleges.studentEmail(college), true, "T", null));
+    ChannelView channel =
+        subscribers.addChannel(student.id(), ChannelType.NTFY, new ChannelAddress("nb-topic"));
+
+    assertThat(subscribers.setChannelEnabled(student.id(), channel.id(), false).enabled())
+        .isFalse();
+    assertThat(subscribers.setChannelEnabled(student.id(), channel.id(), true).enabled()).isTrue();
+    assertThatThrownBy(() -> subscribers.setChannelEnabled(UUID.randomUUID(), channel.id(), false))
+        .isInstanceOf(SubscriberNotFoundException.class);
+  }
 }

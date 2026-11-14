@@ -7,7 +7,7 @@ package com.neobuddy.notification.channel;
  * @param body the message text
  * @param tags comma-separated ntfy tags (emoji short codes)
  * @param priority ntfy priority name
- * @param click address opened when the notification is tapped
+ * @param click address opened when the notification is tapped; null for none
  */
 record NtfyMessage(String title, String body, String tags, String priority, String click) {
 

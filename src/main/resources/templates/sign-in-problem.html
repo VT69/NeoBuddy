@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Could not sign you in')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1>Could not sign you in</h1>
+  <p th:switch="${reason}">
+    <span th:case="'email_not_verified'">Google has not verified this email address. Verify it with Google and try again.</span>
+    <span th:case="'hosted_domain_mismatch'">This Google account belongs to a different organisation than your college. Sign in with your college account.</span>
+    <span th:case="'email_already_registered'">This email is already tied to a different Google account. Ask the admin for help.</span>
+    <span th:case="'access_denied'">You cancelled the Google sign-in.</span>
+    <span th:case="*">Something went wrong with the Google sign-in. Please try again.</span>
+  </p>
+  <a class="button primary" th:href="@{/oauth2/authorization/google}">Try again</a>
+  <p><a th:href="@{/}">Back to the start</a></p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

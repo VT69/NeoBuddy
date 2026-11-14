@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Dashboard')}"></head>
+<body th:hx-headers="${_csrf != null} ? |{&quot;${_csrf.headerName}&quot;: &quot;${_csrf.token}&quot;}| : null">
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page">
+  <h1 th:text="${me.displayName} != null ? |Hi, ${me.displayName}| : 'Your dashboard'">Your dashboard</h1>
+  <p class="notice warn" th:unless="${me.receivesAlerts()}">No channel is on, so you will not be alerted. Set one up below.</p>
+  <div id="flash" class="flash-area" aria-live="polite"></div>
+  <div th:replace="~{fragments/identifiers :: identifiers}"></div>
+  <div th:replace="~{fragments/channels :: channels}"></div>
+  <div th:replace="~{fragments/alerts :: alerts}"></div>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -13,7 +13,8 @@ set -euo pipefail
 out="${1:-${NEOBUDDY_ETC:-/etc/neobuddy}/app.env}"
 path="${SSM_PATH:-/neobuddy/prod/}"
 region="${AWS_REGION:?AWS_REGION must be set}"
-required=(DB_PASSWORD NEOBUDDY_ENCRYPTION_KEY NEOBUDDY_DOMAIN NEOBUDDY_SES_FROM)
+required=(DB_PASSWORD NEOBUDDY_ENCRYPTION_KEY NEOBUDDY_DOMAIN NEOBUDDY_SES_FROM
+  NEOBUDDY_GOOGLE_CLIENT_ID NEOBUDDY_GOOGLE_CLIENT_SECRET)
 
 umask 077
 out_dir="$(dirname "$out")"

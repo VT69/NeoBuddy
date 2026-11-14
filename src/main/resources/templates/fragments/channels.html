@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<section th:fragment="channels" id="channels" class="card"
+         th:with="push=${me.channel(T(com.neobuddy.subscriber.ChannelType).NTFY)},
+                  mail=${me.channel(T(com.neobuddy.subscriber.ChannelType).EMAIL)}">
+  <h2>Where we alert you</h2>
+  <p class="notice ok" th:if="${message}" th:text="${message}" role="status"></p>
+
+  <!-- Push through ntfy -->
+  <article class="channel">
+    <header class="channel-head">
+      <h3>Push (ntfy app)</h3>
+      <span th:if="${push}" th:class="|badge ${push.verified and push.enabled ? 'on' : 'off'}|" th:text="${push.state()}">On</span>
+    </header>
+    <div th:unless="${push}">
+      <p>Free, fast, no account needed. You get a private topic only you know.</p>
+      <button class="button primary" type="button" hx-post="/api/v1/me/channels/ntfy" hx-target="#channels" hx-swap="outerHTML">Set up push</button>
+    </div>
+    <div th:if="${push}">
+      <details th:attr="open=${ntfyOpen} ? 'open' : null" class="setup" th:if="${ntfy}">
+        <summary>How to subscribe on your phone</summary>
+        <ol class="steps">
+          <li>Install <strong>ntfy</strong> from the Play Store or App Store.</li>
+          <li>Tap <strong>+</strong>, enter the topic below, keep the server <code>ntfy.sh</code>, and subscribe.</li>
+          <li>Or, on another device, scan the code or open the link.</li>
+        </ol>
+        <p class="topic">Topic: <code th:text="${ntfy.topic}">nb-topic</code></p>
+        <div class="qr-box" th:utext="${ntfy.qrSvg}"></div>
+        <p><a th:href="${ntfy.subscribeUrl}" th:text="${ntfy.subscribeUrl}" rel="noopener" target="_blank">https://ntfy.sh/nb-topic</a></p>
+        <p class="muted">Keep the topic to yourself: anyone who knows it can read your alerts.</p>
+      </details>
+      <div class="row">
+        <button class="button" type="button" th:hx-post="@{/api/v1/me/channels/{id}/test(id=${push.id})}" hx-target="#flash" hx-swap="innerHTML" th:disabled="${!push.enabled}">Send test</button>
+        <button class="button" type="button" th:hx-patch="@{/api/v1/me/channels/{id}(id=${push.id})}" th:hx-vals="|{&quot;enabled&quot;: &quot;${!push.enabled}&quot;}|" hx-target="#channels" hx-swap="outerHTML" th:text="${push.enabled} ? 'Pause' : 'Resume'">Pause</button>
+        <button class="button" type="button" hx-post="/api/v1/me/channels/ntfy" hx-target="#channels" hx-swap="outerHTML" hx-confirm="Make a new topic? The old one stops working and you subscribe again.">New topic</button>
+      </div>
+    </div>
+  </article>
+
+  <!-- Email -->
+  <article class="channel">
+    <header class="channel-head">
+      <h3>Email</h3>
+      <span th:if="${mail}" th:class="|badge ${mail.verified and mail.enabled ? 'on' : 'off'}|" th:text="${mail.state()}">On</span>
+    </header>
+    <p th:if="${mail}" class="address" th:text="${mail.address}">you@example.com</p>
+    <div th:if="${mail != null and mail.verified}" class="row">
+      <button class="button" type="button" th:hx-post="@{/api/v1/me/channels/{id}/test(id=${mail.id})}" hx-target="#flash" hx-swap="innerHTML" th:disabled="${!mail.enabled}">Send test</button>
+      <button class="button" type="button" th:hx-patch="@{/api/v1/me/channels/{id}(id=${mail.id})}" th:hx-vals="|{&quot;enabled&quot;: &quot;${!mail.enabled}&quot;}|" hx-target="#channels" hx-swap="outerHTML" th:text="${mail.enabled} ? 'Pause' : 'Resume'">Pause</button>
+    </div>
+    <form th:if="${mail != null and !mail.verified}" class="stack" hx-post="/api/v1/me/channels/email/verify" hx-target="#channels" hx-swap="outerHTML">
+      <label for="email-code">Enter the 6-digit code we emailed you</label>
+      <input id="email-code" name="code" required inputmode="numeric" autocomplete="one-time-code" pattern="\s*\d{6}\s*" maxlength="8">
+      <button class="button primary" type="submit">Verify</button>
+    </form>
+    <details th:attr="open=${mail == null} ? 'open' : null" class="setup">
+      <summary th:text="${mail == null} ? 'Set up email alerts' : (${mail.verified} ? 'Use a different address' : 'Send the code again or change the address')">Set up email alerts</summary>
+      <form class="stack" hx-post="/api/v1/me/channels/email" hx-target="#channels" hx-swap="outerHTML">
+        <label for="email-address">Personal email address</label>
+        <input id="email-address" name="address" type="email" required maxlength="254" autocomplete="email" th:value="${mail?.address}">
+        <button class="button" type="submit">Send me a code</button>
+      </form>
+    </details>
+  </article>
+
+  <article class="channel muted">
+    <header class="channel-head"><h3>Discord</h3><span class="badge off">Coming soon</span></header>
+  </article>
+</section>
+</body>
+</html>

@@ -47,6 +47,17 @@ public class ChannelDirectory {
                 new ChannelAddress(channel.getAddress())));
   }
 
+  /**
+   * The address of one of the user's own channels, verified or not, to show it to them (where a
+   * code was sent, which topic to subscribe to). Empty if the channel is not theirs.
+   */
+  @Transactional(readOnly = true)
+  public Optional<ChannelAddress> addressOf(UUID userId, UUID channelId) {
+    return channels
+        .findByIdAndUserId(channelId, userId)
+        .map(channel -> new ChannelAddress(channel.getAddress()));
+  }
+
   private static boolean isDeliverable(Channel channel) {
     return channel.isVerified() && channel.isEnabled();
   }

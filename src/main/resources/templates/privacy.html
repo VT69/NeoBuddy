@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Privacy policy')}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow prose">
+  <h1>Privacy policy</h1>
+  <p>NeoBuddy is a small service run by students. It tells you when a placement email sent to your batch mentions you. This page says, in plain words, what it keeps and why.</p>
+
+  <h2>What we keep about you</h2>
+  <ul>
+    <li><strong>From Google, when you sign in:</strong> your name, your college email address and Google's id for your account. We ask Google for nothing else: no access to your mailbox, contacts or files.</li>
+    <li><strong>What you add:</strong> your NeoID, and if you choose, your registration number and college email, so we can find you in shortlists.</li>
+    <li><strong>Where to alert you:</strong> your ntfy push topic and your personal email address. Both are stored encrypted.</li>
+    <li><strong>Your alerts:</strong> for each placement email that mentions you, the company, the type (shortlist or offer), the date, <em>your own row</em> from the sheet, and whether each alert was delivered.</li>
+    <li><strong>When you agreed:</strong> the date you accepted this policy.</li>
+  </ul>
+
+  <h2>What we do not keep</h2>
+  <ul>
+    <li>Placement emails and their attachments. They are read once to find matches and never stored.</li>
+    <li>Other students' rows. You only ever see, and we only ever keep, your own.</li>
+    <li>Tracking or advertising data. The only cookie is the one that keeps you signed in.</li>
+  </ul>
+
+  <h2>Who else sees it</h2>
+  <ul>
+    <li><strong>Google</strong> handles sign-in.</li>
+    <li><strong>Amazon Web Services</strong> hosts NeoBuddy in Mumbai and sends alert emails (Amazon SES).</li>
+    <li><strong>ntfy.sh</strong> delivers push notifications. The alert text, including your row, passes through its servers. Anyone who knows your topic can read your alerts, so keep it to yourself; you can make a new one at any time.</li>
+  </ul>
+  <p>We do not sell or share your data with anyone else, and the placement cell has no access to it.</p>
+
+  <h2>How long we keep it</h2>
+  <ul>
+    <li>Your row from each sheet is deleted after <strong>180 days</strong>. The entry itself (company, type, date) stays in your history until you delete your account.</li>
+    <li>Everything else stays until you delete your account.</li>
+    <li>Deleting your account in Settings removes your account, identifiers, channels and history <strong>at once</strong>. Copies in our encrypted backups disappear within <strong>30 days</strong>.</li>
+    <li>Server logs are kept for 30 days. They name emails by an internal id, never by their content.</li>
+  </ul>
+
+  <h2>One thing we cannot check</h2>
+  <p>We cannot prove that a NeoID belongs to the person who adds it. Each identifier can belong to one account only. If someone has claimed yours, contact us and we will sort it out.</p>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li>Pause alerts or switch off a channel at any time.</li>
+    <li>Delete your account at any time, in Settings.</li>
+    <li th:if="${contactEmail}">Questions or requests: <a th:href="|mailto:${contactEmail}|" th:text="${contactEmail}">contact</a>.</li>
+  </ul>
+
+  <h2>Changes</h2>
+  <p>If this policy changes in a way that matters, we will tell you on your dashboard before it applies.</p>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

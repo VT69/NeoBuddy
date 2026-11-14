@@ -55,11 +55,17 @@ dependencies {
         exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
     }
 
+    // Web (rate limits, QR codes for push subscriptions)
+    implementation(libs.bucket4j.core)
+    implementation(libs.zxing.core)
+
     runtimeOnly(libs.flyway.postgresql)
     runtimeOnly(libs.postgresql)
 
     testImplementation(libs.spring.boot.starter.test)
     testImplementation(libs.spring.boot.testcontainers)
+    testImplementation(libs.spring.boot.starter.webmvc.test)
+    testImplementation(libs.spring.boot.starter.security.oauth2.client.test)
     testImplementation(libs.spring.modulith.starter.test)
     testImplementation(libs.testcontainers.postgresql)
     testImplementation(libs.testcontainers.junit.jupiter)

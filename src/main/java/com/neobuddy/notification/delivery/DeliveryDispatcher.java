@@ -201,6 +201,7 @@ class DeliveryDispatcher {
         email.subject(),
         match.contextSnippet(),
         email.receivedAt(),
-        email.rfcMessageId());
+        email.rfcMessageId(),
+        match.test());
   }
 }

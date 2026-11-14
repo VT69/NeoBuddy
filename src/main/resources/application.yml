@@ -17,6 +17,16 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # The "neobuddy-login" Web OAuth client: only openid, email and profile. Required; the
+            # app does not start without it. Redirect URI: {base-url}/login/oauth2/code/google.
+            client-id: ${NEOBUDDY_GOOGLE_CLIENT_ID}
+            client-secret: ${NEOBUDDY_GOOGLE_CLIENT_SECRET}
+            scope: openid,email,profile
 
 neobuddy:
   encryption:
@@ -87,6 +97,9 @@ neobuddy:
         limit-for-period: 1
         refresh-period: PT1S
         timeout: PT10S
+  web:
+    # Shown on the privacy policy and terms as the address for questions and deletion requests.
+    contact-email: ${NEOBUDDY_CONTACT_EMAIL:}
   verification:
     # Emailed one-time codes.
     email-otp-validity: PT10M
@@ -162,6 +175,15 @@ server:
   # redirects and sign-in callbacks use the public https address. Tomcat only accepts them from
   # private-network addresses, which is where Caddy sits.
   forward-headers-strategy: native
+  servlet:
+    session:
+      # Sessions live in memory: a restart or deploy signs everyone out (one tap to sign back in).
+      timeout: 12h
+      cookie:
+        name: NEOBUDDY_SESSION
+        secure: true
+        http-only: true
+        same-site: lax
 
 management:
   endpoints:

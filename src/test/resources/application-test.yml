@@ -1,4 +1,13 @@
 # Settings for the "test" profile only.
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # Placeholders; tests never reach Google.
+            client-id: test-client-id.apps.googleusercontent.com
+            client-secret: test-client-secret
 neobuddy:
   encryption:
     # Not a secret: the bytes 0..31 in base64. Exists so tests can encrypt and decrypt.

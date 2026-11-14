@@ -21,6 +21,8 @@ google-auth = "1.57.0"
 resilience4j = "2.4.0"
 aws-sdk = "2.59.0"
 wiremock = "3.13.2"
+bucket4j = "8.22.0"
+zxing = "3.5.4"
 
 [libraries]
 # BOMs
@@ -38,6 +40,8 @@ spring-boot-starter-thymeleaf = { module = "org.springframework.boot:spring-boot
 spring-boot-starter-flyway = { module = "org.springframework.boot:spring-boot-starter-flyway" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
 spring-boot-testcontainers = { module = "org.springframework.boot:spring-boot-testcontainers" }
+spring-boot-starter-webmvc-test = { module = "org.springframework.boot:spring-boot-starter-webmvc-test" }
+spring-boot-starter-security-oauth2-client-test = { module = "org.springframework.boot:spring-boot-starter-security-oauth2-client-test" }
 
 # Database (versions from spring-boot-bom)
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql" }
@@ -68,6 +72,10 @@ resilience4j-retry = { module = "io.github.resilience4j:resilience4j-retry", ver
 # Notification (ntfy rate limit, email through Amazon SES)
 resilience4j-ratelimiter = { module = "io.github.resilience4j:resilience4j-ratelimiter", version.ref = "resilience4j" }
 aws-sesv2 = { module = "software.amazon.awssdk:sesv2", version.ref = "aws-sdk" }
+
+# Web (rate limits, QR codes)
+bucket4j-core = { module = "com.bucket4j:bucket4j_jdk17-core", version.ref = "bucket4j" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 
 # Testing
 wiremock-standalone = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Settings')}"></head>
+<body th:hx-headers="${_csrf != null} ? |{&quot;${_csrf.headerName}&quot;: &quot;${_csrf.token}&quot;}| : null">
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <h1>Settings</h1>
+  <p class="notice ok" th:if="${notice}" th:text="${notice}" role="status"></p>
+  <div id="flash" class="flash-area" aria-live="polite"></div>
+
+  <section class="card">
+    <h2>Account</h2>
+    <dl class="facts">
+      <dt>Signed in as</dt><dd th:text="${me.email}">you@college.edu</dd>
+      <dt>Member since</dt><dd th:text="${memberSince}">1 Jan 2026</dd>
+    </dl>
+  </section>
+
+  <section class="card">
+    <h2>Pause all alerts</h2>
+    <p>Switches every channel off. NeoBuddy still records the emails that mention you, so they show on your dashboard.</p>
+    <div class="row">
+      <form th:action="@{/settings/pause-all}" method="post"><button class="button" type="submit">Pause all</button></form>
+      <form th:action="@{/settings/resume-all}" method="post"><button class="button" type="submit">Resume all</button></form>
+    </div>
+  </section>
+
+  <section class="card danger">
+    <h2>Delete my account</h2>
+    <p>Deletes your account, identifiers, channels and alert history at once. Copies in our encrypted backups disappear within 30 days. This cannot be undone.</p>
+    <form hx-delete="/api/v1/me" hx-confirm="Delete your NeoBuddy account and everything in it? This cannot be undone." class="stack">
+      <label class="check"><input type="checkbox" name="confirm" required> I understand this deletes everything.</label>
+      <button class="button danger" type="submit">Delete my account</button>
+    </form>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<head th:replace="~{fragments/layout :: head('Set up')}"></head>
+<body th:hx-headers="${_csrf != null} ? |{&quot;${_csrf.headerName}&quot;: &quot;${_csrf.token}&quot;}| : null">
+<header th:replace="~{fragments/layout :: header}"></header>
+<main class="page narrow">
+  <ol class="progress" aria-label="Steps">
+    <li th:classappend="${step == 1} ? 'current' : (${step > 1} ? 'done' : '')">NeoID</li>
+    <li th:classappend="${step == 2} ? 'current' : (${step > 2} ? 'done' : '')">More identifiers</li>
+    <li th:classappend="${step == 3} ? 'current' : ''">Alerts</li>
+  </ol>
+
+  <ul class="notice error" th:if="${errors}" role="alert">
+    <li th:each="error : ${errors}" th:text="${error}"></li>
+  </ul>
+
+  <section th:if="${step == 1}" class="card">
+    <h1>Your NeoID</h1>
+    <p>NeoBuddy looks for this in every shortlist. You find it on your NeoPAT profile.</p>
+    <form th:action="@{/onboarding/neo-id}" method="post" class="stack">
+      <label for="neoId">NeoID</label>
+      <input id="neoId" name="neoId" required autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="64" placeholder="e.g. N1B7J5V6">
+      <button class="button primary" type="submit">Continue</button>
+    </form>
+  </section>
+
+  <section th:if="${step == 2}" class="card">
+    <h1>More ways to find you</h1>
+    <p>Optional. Some sheets list registration numbers or emails instead of NeoIDs.</p>
+    <form th:action="@{/onboarding/more-identifiers}" method="post" class="stack">
+      <label for="regNo">Registration number</label>
+      <input id="regNo" name="regNo" autocomplete="off" spellcheck="false" maxlength="64"
+             th:value="${me.identifier(T(com.neobuddy.subscriber.IdentifierType).REG_NO)?.value}">
+      <label for="collegeEmail">College email</label>
+      <input id="collegeEmail" name="collegeEmail" type="email" maxlength="254"
+             th:value="${me.identifier(T(com.neobuddy.subscriber.IdentifierType).COLLEGE_EMAIL)?.value} ?: ${googleEmail}">
+      <button class="button primary" type="submit">Continue</button>
+      <a class="button" th:href="@{/onboarding(step=3)}">Skip</a>
+    </form>
+  </section>
+
+  <section th:if="${step == 3}">
+    <h1>Where should we tell you?</h1>
+    <p>Set up at least one. Push is the fastest.</p>
+    <div id="flash" class="flash-area" aria-live="polite"></div>
+    <div th:replace="~{fragments/channels :: channels}"></div>
+    <a class="button primary big" th:href="@{/dashboard}">Go to my dashboard</a>
+  </section>
+</main>
+<footer th:replace="~{fragments/layout :: footer}"></footer>
+</body>
+</html>

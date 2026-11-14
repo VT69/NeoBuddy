@@ -1,0 +1,6 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="en">
+<body>
+<p th:fragment="flash" th:class="|notice ${kind ?: 'ok'}|" role="status" th:text="${message}">Done.</p>
+</body>
+</html>

@@ -14,6 +14,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  * @param baseBackoff wait after the first failed try; doubles after each further one
  * @param claimTimeout how long a claimed delivery is hidden from other dispatchers; if the instance
  *     that claimed it dies, it becomes due again after this
+ * @param dispatchOnCommit also dispatch right after a transaction that queued deliveries commits,
+ *     instead of waiting for the next scheduled run. Lets a host that should touch the database
+ *     rarely (the Render profile) run the scheduled dispatcher only as an occasional sweep for
+ *     retries and leftovers, without slowing alerts down.
  */
 @ConfigurationProperties(prefix = "neobuddy.delivery")
 public record DeliveryProperties(
@@ -22,7 +26,8 @@ public record DeliveryProperties(
     @DefaultValue("50") int batchSize,
     @DefaultValue("6") int maxAttempts,
     @DefaultValue("PT1M") Duration baseBackoff,
-    @DefaultValue("PT5M") Duration claimTimeout) {
+    @DefaultValue("PT5M") Duration claimTimeout,
+    @DefaultValue("false") boolean dispatchOnCommit) {
 
   private static final int MAX_SHIFT = 20;
 

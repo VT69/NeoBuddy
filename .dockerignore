@@ -1,0 +1,7 @@
+# Only the Gradle wrapper, build scripts and src go into the build context.
+*
+!gradlew
+!gradle/
+!settings.gradle.kts
+!build.gradle.kts
+!src/main/

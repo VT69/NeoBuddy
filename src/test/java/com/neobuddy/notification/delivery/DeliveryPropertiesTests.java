@@ -11,7 +11,7 @@ class DeliveryPropertiesTests {
 
   private static DeliveryProperties defaults() {
     return new DeliveryProperties(
-        true, Duration.ofSeconds(10), 50, 6, Duration.ofMinutes(1), Duration.ofMinutes(5));
+        true, Duration.ofSeconds(10), 50, 6, Duration.ofMinutes(1), Duration.ofMinutes(5), false);
   }
 
   @Test
@@ -32,7 +32,13 @@ class DeliveryPropertiesTests {
   void backoffFollowsTheConfiguredBase() {
     DeliveryProperties properties =
         new DeliveryProperties(
-            true, Duration.ofSeconds(10), 50, 3, Duration.ofSeconds(30), Duration.ofMinutes(5));
+            true,
+            Duration.ofSeconds(10),
+            50,
+            3,
+            Duration.ofSeconds(30),
+            Duration.ofMinutes(5),
+            false);
 
     assertThat(properties.backoffAfter(1)).isEqualTo(Duration.ofSeconds(30));
     assertThat(properties.backoffAfter(3)).isEqualTo(Duration.ofMinutes(2));
@@ -57,11 +63,17 @@ class DeliveryPropertiesTests {
   void rejectsSettingsThatWouldStopDelivery() {
     assertThatThrownBy(() ->
             new DeliveryProperties(
-                true, Duration.ofSeconds(10), 0, 6, Duration.ofMinutes(1), Duration.ofMinutes(5)))
+                true,
+                Duration.ofSeconds(10),
+                0,
+                6,
+                Duration.ofMinutes(1),
+                Duration.ofMinutes(5),
+                false))
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() ->
             new DeliveryProperties(
-                true, Duration.ofSeconds(10), 50, 6, Duration.ofMinutes(1), Duration.ZERO))
+                true, Duration.ofSeconds(10), 50, 6, Duration.ofMinutes(1), Duration.ZERO, false))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

@@ -57,7 +57,14 @@ class NtfyPushChannelTests {
             new ChannelProperties.Ntfy(
                 ntfy.baseUrl() + "/", Duration.ofSeconds(2), Duration.ofMillis(500), rateLimit),
             new ChannelProperties.Email("log"),
-            new ChannelProperties.Ses(null, "ap-south-1", rateLimit)),
+            new ChannelProperties.Ses(null, "ap-south-1", rateLimit),
+            new ChannelProperties.Brevo(
+                null,
+                null,
+                "https://api.brevo.com",
+                Duration.ofSeconds(1),
+                Duration.ofSeconds(1),
+                rateLimit)),
         new AlertRenderer());
   }
 

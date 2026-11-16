@@ -43,6 +43,7 @@ class DeliveryQueries implements TestAlerts, AlertHistory {
   private final DeliveryStore deliveries;
   private final Clock clock;
   private final Set<ChannelType> sendable;
+  private final DispatchTrigger trigger;
 
   DeliveryQueries(
       SubscriberService subscribers,
@@ -51,8 +52,10 @@ class DeliveryQueries implements TestAlerts, AlertHistory {
       ProcessedEmails emails,
       DeliveryStore deliveries,
       Clock clock,
-      List<NotificationChannel> senders) {
+      List<NotificationChannel> senders,
+      DispatchTrigger trigger) {
     this.subscribers = subscribers;
+    this.trigger = trigger;
     this.matches = matches;
     this.testMatches = testMatches;
     this.emails = emails;
@@ -82,6 +85,7 @@ class DeliveryQueries implements TestAlerts, AlertHistory {
             .orElseThrow(() -> new TestAlertNotPossibleException(Reason.NO_IDENTIFIER));
     StoredMatch match = testMatches.createTestMatch(user.collegeId(), userId, identifier.id());
     deliveries.insertIfAbsent(match.id(), channelId, clock.instant());
+    trigger.afterCommit();
     return deliveries.idOf(match.id(), channelId).orElseThrow();
   }
 

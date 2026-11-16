@@ -38,6 +38,10 @@ import org.springframework.transaction.annotation.Transactional;
  * delivery} to {@code match_hit} is the last line of defence. Handling the same event again changes
  * nothing: {@code unique (match_id, channel_id)} decides.
  *
+ * <p>Once that transaction commits, {@link DispatchTrigger} sends the new deliveries straight away
+ * where {@code neobuddy.delivery.dispatch-on-commit} is on; elsewhere the scheduled dispatcher
+ * does.
+ *
  * <p>If this fails, the email's whole transaction rolls back and the email is marked FAILED, rather
  * than keeping matches nobody is told about.
  */
@@ -51,17 +55,20 @@ class DeliveryService {
   private final DeliveryStore deliveries;
   private final Clock clock;
   private final Set<ChannelType> sendable;
+  private final DispatchTrigger trigger;
 
   DeliveryService(
       StoredMatches matches,
       ChannelDirectory channels,
       DeliveryStore deliveries,
       Clock clock,
-      List<NotificationChannel> senders) {
+      List<NotificationChannel> senders,
+      DispatchTrigger trigger) {
     this.matches = matches;
     this.channels = channels;
     this.deliveries = deliveries;
     this.clock = clock;
+    this.trigger = trigger;
     Set<ChannelType> types = EnumSet.noneOf(ChannelType.class);
     senders.forEach(sender -> types.add(sender.type()));
     this.sendable = types;
@@ -87,5 +94,8 @@ class DeliveryService {
       }
     }
     log.info("Email {}: {} deliveries queued", event.rfcMessageId(), created);
+    if (created > 0) {
+      trigger.afterCommit();
+    }
   }
 }

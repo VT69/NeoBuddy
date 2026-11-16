@@ -78,6 +78,9 @@ neobuddy:
     base-backoff: PT1M
     # A claimed alert whose instance died becomes due again after this.
     claim-timeout: PT5M
+    # true also dispatches right after new deliveries commit (the render profile turns it on and
+    # makes the scheduled run a 2-minute sweep).
+    dispatch-on-commit: false
   channels:
     ntfy:
       base-url: ${NEOBUDDY_NTFY_BASE_URL:https://ntfy.sh}
@@ -86,7 +89,8 @@ neobuddy:
         refresh-period: PT1S
         timeout: PT10S
     email:
-      # ses = Amazon SES; log = send nothing, only log (the local profile's default).
+      # ses = Amazon SES (AWS); brevo = Brevo's HTTPS API (the render profile's default);
+      # log = send nothing, only log (the local profile's default).
       provider: ${NEOBUDDY_EMAIL_PROVIDER:ses}
     ses:
       # A sender verified in SES, e.g. "NeoBuddy <alerts@your-domain>". Required with provider ses.
@@ -95,6 +99,15 @@ neobuddy:
       # The SES sandbox allows one email per second; raise it with production access.
       rate-limit:
         limit-for-period: 1
+        refresh-period: PT1S
+        timeout: PT10S
+    brevo:
+      # Used with provider brevo: an API key and the single sender verified in Brevo.
+      api-key: ${NEOBUDDY_BREVO_API_KEY:}
+      from: ${NEOBUDDY_BREVO_FROM:}
+      # Brevo accepts far more; this only smooths bursts. The free plan caps sends per day.
+      rate-limit:
+        limit-for-period: 5
         refresh-period: PT1S
         timeout: PT10S
   discord:
@@ -106,6 +119,8 @@ neobuddy:
     # Shown next to a /link code, e.g. https://discord.gg/abc123
     invite-url: ${NEOBUDDY_DISCORD_INVITE_URL:}
   web:
+    # Where NeoBuddy runs, for the privacy policy and consent page: aws or render.
+    hosting: aws
     # Shown on the privacy policy and terms as the address for questions and deletion requests.
     contact-email: ${NEOBUDDY_CONTACT_EMAIL:}
   verification:

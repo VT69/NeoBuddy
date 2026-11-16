@@ -7,7 +7,10 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 /** Outbound channel settings ({@code neobuddy.channels.*}). */
 @ConfigurationProperties(prefix = "neobuddy.channels")
 public record ChannelProperties(
-    @DefaultValue Ntfy ntfy, @DefaultValue Email email, @DefaultValue Ses ses) {
+    @DefaultValue Ntfy ntfy,
+    @DefaultValue Email email,
+    @DefaultValue Ses ses,
+    @DefaultValue Brevo brevo) {
 
   /**
    * @param baseUrl the ntfy server; alerts are POSTed to {@code {baseUrl}/{topic}}
@@ -22,8 +25,9 @@ public record ChannelProperties(
       @DefaultValue RateLimit rateLimit) {}
 
   /**
-   * @param provider {@code ses} sends through Amazon SES; {@code log} only logs that an email would
-   *     have been sent (the local profile's default)
+   * @param provider {@code ses} sends through Amazon SES (the AWS deployment); {@code brevo}
+   *     through Brevo's HTTPS API (the Render deployment); {@code log} only logs that an email
+   *     would have been sent (the local profile's default)
    */
   public record Email(@DefaultValue("ses") String provider) {}
 
@@ -34,6 +38,31 @@ public record ChannelProperties(
    */
   public record Ses(
       String from, @DefaultValue("ap-south-1") String region, @DefaultValue RateLimit rateLimit) {}
+
+  /**
+   * Brevo's transactional email API, used where SMTP is blocked (Render's free tier).
+   *
+   * @param apiKey the Brevo API key ({@code xkeysib-...}); a secret
+   * @param from the sender, a single sender verified in Brevo; may be {@code Name <address>}
+   * @param baseUrl Brevo's API; tests point it at a local server
+   * @param connectTimeout connect timeout per request
+   * @param readTimeout how long to wait for Brevo's answer
+   * @param rateLimit how fast emails may be sent
+   */
+  public record Brevo(
+      String apiKey,
+      String from,
+      @DefaultValue("https://api.brevo.com") String baseUrl,
+      @DefaultValue("5s") Duration connectTimeout,
+      @DefaultValue("10s") Duration readTimeout,
+      @DefaultValue RateLimit rateLimit) {
+
+    /** Never prints the API key. */
+    @Override
+    public String toString() {
+      return "Brevo[from=" + from + ", baseUrl=" + baseUrl + "]";
+    }
+  }
 
   /**
    * At most {@code limitForPeriod} sends per {@code refreshPeriod}. A send that finds the limit

@@ -26,7 +26,10 @@
   <h2>Who else sees it</h2>
   <ul>
     <li><strong>Google</strong> handles sign-in.</li>
-    <li><strong>Amazon Web Services</strong> hosts NeoBuddy in Mumbai and sends alert emails (Amazon SES).</li>
+    <li th:if="${hosting == 'render'}"><strong>Render</strong> runs the NeoBuddy app and <strong>Supabase</strong> hosts its database.</li>
+    <li th:unless="${hosting == 'render'}"><strong>Amazon Web Services</strong> hosts NeoBuddy in Mumbai<th:block th:unless="${emailProvider == 'brevo'}"> and sends alert emails (Amazon SES)</th:block>.</li>
+    <li th:if="${emailProvider == 'brevo'}"><strong>Brevo</strong> sends alert emails; the alert text passes through it.</li>
+    <li th:if="${emailProvider != 'brevo' and hosting == 'render'}"><strong>Amazon SES</strong> sends alert emails.</li>
     <li><strong>Discord</strong> delivers direct messages if you link your Discord account; the alert text passes through Discord.</li>
     <li><strong>ntfy.sh</strong> delivers push notifications. The alert text, including your row, passes through its servers. Anyone who knows your topic can read your alerts, so keep it to yourself; you can make a new one at any time.</li>
   </ul>

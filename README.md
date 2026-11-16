@@ -168,6 +168,18 @@ delivery goes `DEAD` with `SES MessageRejectedException`. Wrong credentials or a
 permission show up as `RETRY` with `SES SesV2Exception HTTP 403`. Outside the `local` profile the
 provider is `ses` and `NEOBUDDY_SES_FROM` is required.
 
+**Email (Brevo).** Where SMTP and SES are not an option (the Render deployment), email goes through
+Brevo's HTTPS API instead:
+
+```bash
+export NEOBUDDY_EMAIL_PROVIDER=brevo                  # the render profile's default
+export NEOBUDDY_BREVO_API_KEY=xkeysib-...             # Brevo, SMTP & API, API keys
+export NEOBUDDY_BREVO_FROM='NeoBuddy <you@example.com>'  # the sender verified in Brevo
+```
+
+A rejected message goes `DEAD` with `Brevo HTTP 400 <code>`; a wrong key, a blocked IP address or
+an exhausted daily allowance shows up as `RETRY` with `Brevo HTTP 401` or `402`.
+
 **Check it end to end:** repeat the check from the previous section. Within about two and a half
 minutes of the email arriving (one poll plus one dispatcher run) the phone gets a push and the
 personal address an email. To see what the outbox did:
@@ -183,6 +195,10 @@ order by d.next_attempt_at desc limit 10;
 NeoBuddy runs on AWS (EC2 in `ap-south-1`) and deploys itself from `main`. Infrastructure is in
 `infra/terraform`; setup, deploys, rollback and restoring backups are in
 [deploy/README.md](deploy/README.md).
+
+A free alternative runs the same app on Render's free tier with a Supabase database and Brevo for
+email: `Dockerfile`, `render.yaml` and the `render` profile; setup, the keep-alive pinger and the
+way back to AWS are in [deploy/RENDER.md](deploy/RENDER.md).
 
 ## Test
 

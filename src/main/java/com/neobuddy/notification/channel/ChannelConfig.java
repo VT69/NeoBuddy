@@ -8,9 +8,10 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sesv2.SesV2Client;
 
 /**
- * Picks the email channel: Amazon SES unless {@code neobuddy.channels.email.provider} is {@code
- * log}. AWS credentials come from the SDK's default chain (environment, profile, instance role) and
- * are only looked up when the first email is sent.
+ * Picks the email channel from {@code neobuddy.channels.email.provider}: {@code ses} (Amazon SES,
+ * the default and the AWS deployment's), {@code brevo} (Brevo's HTTPS API, the Render deployment's)
+ * or {@code log} (nothing is sent). AWS credentials come from the SDK's default chain (environment,
+ * profile, instance role) and are only looked up when the first email is sent.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties(ChannelProperties.class)
@@ -37,6 +38,12 @@ class ChannelConfig {
   SesEmailChannel sesEmailChannel(
       SesV2Client ses, ChannelProperties properties, AlertRenderer renderer) {
     return new SesEmailChannel(ses, properties.ses(), renderer);
+  }
+
+  @Bean
+  @ConditionalOnProperty(prefix = PREFIX, name = "provider", havingValue = "brevo")
+  BrevoEmailChannel brevoEmailChannel(ChannelProperties properties, AlertRenderer renderer) {
+    return new BrevoEmailChannel(properties.brevo(), renderer);
   }
 
   @Bean

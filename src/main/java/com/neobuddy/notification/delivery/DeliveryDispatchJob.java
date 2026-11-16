@@ -6,9 +6,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Runs the {@link DeliveryDispatcher} every 10 seconds. ShedLock lets one instance at a time do it;
- * if two ever ran together anyway (a lock that timed out), the claim in the outbox still keeps them
- * off each other's rows.
+ * Runs the {@link DeliveryDispatcher} every {@code neobuddy.delivery.poll-interval}: 10 seconds by
+ * default; on the Render profile every 2 minutes, as a sweep for retries and leftovers behind
+ * {@link DispatchTrigger}. ShedLock lets one instance at a time do it; if two ever ran together
+ * anyway (a lock that timed out), the claim in the outbox still keeps them off each other's rows.
  */
 @Component
 @ConditionalOnProperty(

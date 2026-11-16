@@ -927,3 +927,99 @@ deploy, and has **not** been done. No schema change.
 - Keyed hash of the Discord id for lookups (schema change), before many students link.
 - `/link` attempt limits and the #ops throttles are per instance, in memory.
 - The "allow DMs" hint only appears after a DM failed; `/link` already warns at linking time.
+
+## T8b · Deploy profile for Render's free tier (2026-11-16)
+
+Status: **built and verified locally; not deployed to Render.** `./gradlew build` is green with
+Docker running (Testcontainers, as in CI): **804 tests, 0 failed**, 52 of them new. The image was
+built from the new `Dockerfile` and run with Render's limits (`--memory=512m --cpus=0.1`) against a
+PostgreSQL 16 that refuses unencrypted connections: Flyway applied V1-V3 at startup and
+`/actuator/health` answered UP. The "done when" (deployed on Render, health UP over https) needs
+your Render, Supabase and Brevo accounts and has **not** been done; deploy/RENDER.md is the
+checklist. No schema change; nothing removed from the AWS path.
+
+### What was built
+
+- **`Dockerfile`** (two stages): Temurin 21 JDK builds the boot jar and extracts it; the Temurin 21
+  JRE stage runs as uid 10001. JVM flags in `JDK_JAVA_OPTIONS`, each explained in the file:
+  SerialGC, `MaxRAMPercentage=55`, `InitialRAMPercentage=25`, C1 only (`TieredStopAtLevel=1`),
+  48 MB code cache, `-Xss512k`, `ExitOnOutOfMemoryError`, no background pre-initialiser. A **CDS
+  training run** at build time (context started with Flyway, schema validation, poller and
+  dispatcher off and placeholder secrets, stopped at refresh) writes `/app/app.jsa`, used by the
+  entrypoint. `.dockerignore` sends only the wrapper, build scripts and `src/main`.
+- **`render.yaml`**: one free Docker web service in Singapore, health check `/actuator/health`,
+  auto-deploy after GitHub checks pass, every variable except `SPRING_PROFILES_ACTIVE` declared
+  with `sync: false`.
+- **`render` profile** (`application-render.yml`): Hikari max 3 / min idle 1 with
+  `sslmode=require` as a data-source property (applies whatever `DB_URL` says); Google redirect
+  URI pinned to `NEOBUDDY_PUBLIC_URL`, else Render's `RENDER_EXTERNAL_URL`; forwarded headers
+  `native`; email provider `brevo`; `dispatch-on-commit` with a 2-minute sweep; one attachment
+  extraction at a time.
+- **`BrevoEmailChannel`** (`provider: brevo`): `POST /v3/smtp/email` through `RestClient`, key in
+  the `api-key` header, one verified sender (`Name <address>` or a bare address), text and HTML
+  parts, its own rate limiter. Permanent: 400 and other 4xx; retryable: 401/402/403 (account
+  problems an operator can fix), 429, 5xx, I/O. Reasons carry the status and Brevo's error code
+  only. OTP emails go through it too. `SesEmailChannel` is unchanged and still the default.
+- **Dispatch on commit** (`DispatchTrigger`, `neobuddy.delivery.dispatch-on-commit`): after the
+  transaction that queued deliveries (an email's matches, a test alert) commits, the dispatcher
+  runs on a virtual thread until a batch comes back less than full. One triggered run per
+  instance; triggers during a run make it go round once more. Off by default, so AWS behaves as
+  before.
+- **Privacy policy and consent page** name Render, Supabase and Brevo when running there
+  (`neobuddy.web.hosting`, and the email provider), AWS and SES otherwise.
+- **Docs:** `deploy/RENDER.md` (Supabase session pooler, Brevo sender/key/IP blocking, Google
+  redirect URIs, Blueprint variables, checks, keep-alive pinger, troubleshooting, moving back to
+  AWS); README, CLAUDE.md commands and a paragraph in ARCHITECTURE.md's Deployment section.
+- **Tests:** Brevo against WireMock (request shape, header, sender parsing, every status class,
+  error-code extraction, timeouts, broken connections, OTP); `DispatchTrigger` unit tests (off,
+  after commit only, not on rollback, batching, the safety stop, coalescing, failures);
+  dispatch-on-commit end to end against the database without calling the dispatcher;
+  `RenderProfileTests` starting the app with `test,render` against a **fresh TLS PostgreSQL 16
+  container** (Flyway at startup, `pg_stat_ssl`, pool size, Brevo bean and no SES client, sweep
+  settings, health, https redirect URI, `RemoteIpValve`, privacy wording); `render.yaml` and
+  `Dockerfile` checks (no inline secrets, required variables declared, non-root, tuned JVM,
+  training run reaches no database).
+
+### Measured (local Docker, `--memory=512m --cpus=0.1`)
+
+| | with CDS archive | without |
+| --- | --- | --- |
+| Start to healthy | 83 s | 124 s |
+| Memory after startup | 258 MiB | 284 MiB |
+
+### Decisions
+
+- **Session pooler, not the direct host or the transaction pooler.** Supabase's direct host is
+  IPv6-only on the free plan; port 6543 breaks server-side prepared statements and Flyway's
+  advisory lock.
+- **`sslmode=require`, not `verify-full`**: encrypts without shipping Supabase's CA in the image.
+  Upgrade path: add the CA file and switch to `verify-full`.
+- **Forwarded headers stay `native`** (Tomcat trusts `X-Forwarded-*` only from private addresses,
+  which keeps the client IP unspoofable for the per-IP rate limit). The Google redirect URI no
+  longer depends on them. If Render's proxy turns out not to be on a private address,
+  `SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES` fixes it without a code change (RENDER.md).
+- **Dispatch trigger after commit via a transaction synchronisation, not an internal event**: an
+  `@TransactionalEventListener` would go through Spring Modulith's event registry and add a
+  database write per email, the opposite of the goal.
+- **Tests in external-database mode relax `sslmode` to `prefer`** (a local PostgreSQL often has no
+  TLS); only the container mode, which CI uses, asserts encryption.
+- **Brevo HTTP/1.1**: the JDK client's h2c upgrade attempt with a streamed JSON body failed against
+  WireMock; one small request gains nothing from HTTP/2.
+- **No new dependency.** Brevo uses `RestClient`; the YAML test uses SnakeYAML from Spring Boot.
+
+### Not verified
+
+- **Render itself**: build on Render's builders, its proxy's source address (forwarded headers),
+  the `autoDeployTrigger: checksPass` field, sleep/wake behaviour and the pinger.
+- **Supabase and Brevo**: no real connection was made. Brevo's request and error format follow
+  its public API documentation (`POST /v3/smtp/email`, `api-key` header, `{"code": ...}` errors).
+- The Gradle build stage in the `Dockerfile` was run here with sandbox-only proxy settings
+  added; on Render it runs as committed.
+
+### Follow-ups
+
+- Supabase free has no downloadable backups: schedule a `pg_dump` somewhere (e.g. a GitHub Action
+  to a private artifact) before real students sign up.
+- Brevo's daily cap makes email a backup channel on this setup; say so on the dashboard if
+  students rely on it.
+- Sessions live in memory, so every Render restart or redeploy signs everyone out (as on AWS).

@@ -1,0 +1,60 @@
+# The "render" profile: Render's free web service (512 MB, 0.1 CPU, sleeps after 15 minutes
+# without inbound traffic, SMTP blocked) with an external Supabase PostgreSQL.
+# Runbook: deploy/RENDER.md. Everything comes from environment variables set on Render; there is
+# no SSM here. application.yml still applies underneath; only the differences are below.
+spring:
+  datasource:
+    # DB_URL is Supabase's session pooler, e.g.
+    # jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres
+    # (not the direct db.<ref>.supabase.co host, which is IPv6 only on the free plan, and not the
+    # transaction pooler on port 6543, which breaks prepared statements and Flyway's lock).
+    hikari:
+      # Supabase's free pooler allows a handful of connections; three cover the poller, the
+      # dispatcher and web requests (virtual threads wait for a free connection).
+      maximum-pool-size: 3
+      minimum-idle: 1
+      # In milliseconds (Hikari takes plain numbers): idle connections close after 5 minutes and
+      # every connection is renewed after 15, before the pooler or a network middlebox drops it.
+      idle-timeout: 300000
+      max-lifetime: 900000
+      connection-timeout: 20000
+      data-source-properties:
+        # Always encrypt, whatever DB_URL says. "require" encrypts without checking the
+        # certificate chain, which needs no CA file in the image.
+        sslmode: require
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            # Pinned to the public address instead of being derived from request headers.
+            # RENDER_EXTERNAL_URL is set by Render (https://<name>.onrender.com);
+            # NEOBUDDY_PUBLIC_URL overrides it, e.g. for a custom domain later.
+            redirect-uri: ${NEOBUDDY_PUBLIC_URL:${RENDER_EXTERNAL_URL:{baseUrl}}}/login/oauth2/code/{registrationId}
+
+server:
+  # Render's proxy terminates HTTPS and sends X-Forwarded-For / X-Forwarded-Proto. Tomcat honours
+  # them from private-network addresses, which is where that proxy reaches the container, so
+  # redirects, secure cookies and absolute links use https. If Render ever connects from elsewhere,
+  # set SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES (deploy/RENDER.md, "Troubleshooting").
+  forward-headers-strategy: native
+
+neobuddy:
+  web:
+    # Names the right services on the privacy policy and the consent page.
+    hosting: render
+  channels:
+    email:
+      # SMTP ports are blocked on Render's free tier; Brevo's API is plain HTTPS.
+      # Needs NEOBUDDY_BREVO_API_KEY and NEOBUDDY_BREVO_FROM, the single sender verified in
+      # Brevo, e.g. "NeoBuddy <you@example.com>".
+      provider: ${NEOBUDDY_EMAIL_PROVIDER:brevo}
+  delivery:
+    # Alerts go out right after the email's matches commit; the scheduled run is only a sweep
+    # for retries and leftovers, so the database is not queried every 10 seconds.
+    dispatch-on-commit: true
+    poll-interval: PT2M
+  extraction:
+    # One attachment at a time: a large sheet and a large PDF parsed together could exhaust
+    # 512 MB.
+    max-concurrent: 1

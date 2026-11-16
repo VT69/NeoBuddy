@@ -26,6 +26,7 @@ Thymeleaf + htmx, JUnit 5 + Testcontainers, AWS (EC2, SES, SSM, S3) via Terrafor
   - Optional Docker database instead of a local install: docker compose up -d db
 - Format: ./gradlew spotlessApply
 - Container image: ./gradlew jibDockerBuild (needs Docker). Production runbook: deploy/README.md.
+- Render free tier (profile render, Supabase, Brevo): docker build -t neobuddy . ; runbook deploy/RENDER.md.
 - Terraform checks (AWS mocked): cd infra/terraform && terraform init -backend=false && terraform test
 
 ## Rules

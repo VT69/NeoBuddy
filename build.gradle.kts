@@ -145,6 +145,8 @@ tasks.withType<Test>().configureEach {
     // DeployScriptsTests runs these scripts, so a change to them must re-run the tests.
     inputs.dir("deploy").withPropertyName("deployScripts")
     inputs.dir(".github/scripts").withPropertyName("ciScripts")
+    // RenderDeploymentFilesTests reads these.
+    inputs.files("render.yaml", "Dockerfile", ".dockerignore").withPropertyName("renderFiles")
 }
 
 spotless {

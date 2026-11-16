@@ -1,0 +1,82 @@
+# Render Blueprint: one free web service built from ./Dockerfile. Runbook: deploy/RENDER.md.
+# Values marked "sync: false" are secrets or college-specific settings: Render asks for them when
+# the Blueprint is first applied and never reads them from this file. Nothing here is secret.
+services:
+  - type: web
+    name: neobuddy
+    runtime: docker
+    plan: free
+    # Closest Render region to India; create the Supabase project in Singapore too.
+    region: singapore
+    branch: main
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Deploy a commit on main only after its GitHub checks (CI: ./gradlew build) have passed.
+    autoDeployTrigger: checksPass
+    # UP only when the database answers. Also the address for the keep-alive pinger.
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: render
+
+      # Supabase session pooler (deploy/RENDER.md, step 1)
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+
+      # openssl rand -base64 32; the same key as before if data already exists
+      - key: NEOBUDDY_ENCRYPTION_KEY
+        sync: false
+
+      # Student sign-in: the "neobuddy-login" Google OAuth client
+      - key: NEOBUDDY_GOOGLE_CLIENT_ID
+        sync: false
+      - key: NEOBUDDY_GOOGLE_CLIENT_SECRET
+        sync: false
+
+      # Email through Brevo's HTTPS API
+      - key: NEOBUDDY_BREVO_API_KEY
+        sync: false
+      - key: NEOBUDDY_BREVO_FROM
+        sync: false
+
+      # Source inbox (Gmail API, "Desktop app" OAuth client)
+      - key: NEOBUDDY_GMAIL_CLIENT_ID
+        sync: false
+      - key: NEOBUDDY_GMAIL_CLIENT_SECRET
+        sync: false
+
+      # First college, admin and source inbox (README, "Bootstrap")
+      - key: NEOBUDDY_BOOTSTRAP_COLLEGE_SLUG
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_COLLEGE_NAME
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_COLLEGE_EMAIL_DOMAINS
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_COLLEGE_SENDER_ALLOWLIST
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_ADMIN_NEO_ID
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_SOURCE_EMAIL
+        sync: false
+      - key: NEOBUDDY_BOOTSTRAP_SOURCE_REFRESH_TOKEN
+        sync: false
+
+      # Discord bot (optional: leave DISCORD_TOKEN empty to switch the bot off)
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: NEOBUDDY_DISCORD_GUILD_ID
+        sync: false
+      - key: NEOBUDDY_DISCORD_OPS_CHANNEL_ID
+        sync: false
+      - key: NEOBUDDY_DISCORD_INVITE_URL
+        sync: false
+
+      # Shown on the privacy policy and terms
+      - key: NEOBUDDY_CONTACT_EMAIL
+        sync: false

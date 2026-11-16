@@ -416,6 +416,8 @@ One small ARM instance in AWS Mumbai (ap-south-1) runs everything under Docker C
 | DNS | Domain + Route 53 (or registrar DNS) | e.g. a `neobuddy` domain for the site and SES |
 | Logs and metrics | CloudWatch (awslogs driver) + Actuator Prometheus endpoint | CloudWatch alarm on health check and dead deliveries |
 
+**Free-tier alternative (Render).** Until AWS is worth paying for, the same image can run on Render's free web service (512 MB, 0.1 CPU, sleeps after 15 idle minutes, SMTP blocked) with a free Supabase Postgres, using the `render` profile: Postgres over TLS with a pool of 3, email through Brevo's HTTPS API (`BrevoEmailChannel`, chosen by `neobuddy.channels.email.provider`), deliveries dispatched right after their match commits with the scheduled dispatcher as a 2-minute sweep, and an external pinger to keep it awake. The AWS path stays as described above. Runbook: `deploy/RENDER.md`.
+
 **Environments:** `local` (Compose + Testcontainers), `prod`. A separate test Gmail inbox and test Discord server keep development away from real placement mail.
 
 **Configuration** (`application.yml`, overridable by env):
